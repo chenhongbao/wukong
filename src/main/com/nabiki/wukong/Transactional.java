@@ -3,11 +3,21 @@ package com.nabiki.wukong;
 import java.util.ConcurrentModificationException;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * {@link Transactional} class provides transparent transaction support for
+ * arbitrary object that implements {@link java.io.Serializable}.
+ *
+ * @param <T> generic type that is a sub-type of {@link java.io.Serializable}
+ */
 public abstract class Transactional<T> {
     private T origin,
             shadow /* shadow is used to mark whether there is transaction
                         undergoing */;
     private ReentrantLock exclusive = new ReentrantLock();
+
+    protected Transactional(T origin) {
+        this.origin = origin;
+    }
 
     /**
      * Get currently active object that could be either the original object when

@@ -6,12 +6,44 @@ import java.util.Stack;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.Consumer;
 
+/**
+ * {@link TransactionList} provides chained transaction support for object that
+ * extends {@link Transactional}.
+ *
+ * <p>Client calls {@link Iterable#forEach(Consumer)} to start a transaction.
+ * The method applies {@link Consumer} on each of the elements in order from
+ * first to last. If error comes out from the {@link Consumer#accept(Object)},
+ * then it will roll back.
+ * </p>
+ */
 public class TransactionList extends ConcurrentLinkedDeque<Transactional<?>> {
+    private boolean rollback = false;
+    private Throwable cause;
+
     public TransactionList() {
     }
 
     public TransactionList(Collection<? extends Transactional<?>> c) {
         super(c);
+    }
+
+    /**
+     * Check if last transaction has rolled back.
+     *
+     * @return {@code true} if last transaction has rolled back, {@code false}
+     *      other wise.
+     */
+    public boolean isRollback() {
+        return this.rollback;
+    }
+
+    /**
+     * Get error that caused last transaction rollback.
+     *
+     * @return {@link Throwable}
+     */
+    public Throwable getCause() {
+        return this.cause;
     }
 
     /**
@@ -33,6 +65,9 @@ public class TransactionList extends ConcurrentLinkedDeque<Transactional<?>> {
      */
     @Override
     public void forEach(Consumer<? super Transactional<?>> action) {
+        // Reset error information.
+        this.rollback = false;
+        this.cause = null;
         if (super.size() == 0)
             return;
         // Lock all elements.
@@ -51,6 +86,9 @@ public class TransactionList extends ConcurrentLinkedDeque<Transactional<?>> {
                 // Roll back when meets error in last-in-first-out order.
                 while (!stack.empty())
                     stack.pop().rollback();
+                // Save error information.
+                this.rollback = true;
+                this.cause = th;
                 return;
             }
         }
