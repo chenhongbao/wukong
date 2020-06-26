@@ -73,7 +73,7 @@ public class OP {
             return Duration.between(start, end);
         else if (start.isAfter(end))
             return Duration.between(start, LocalTime.MIDNIGHT.minusNanos(1))
-                    .plus(Duration.between(LocalTime.MIDNIGHT, end));
+                    .plus(Duration.between(LocalTime.MIDNIGHT, end)).plusNanos(1);
         else
             return Duration.ZERO;
     }
