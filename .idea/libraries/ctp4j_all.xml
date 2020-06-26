@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="ctp4j-all">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/ctp4j-all.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

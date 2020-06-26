@@ -29,6 +29,9 @@
 package com.nabiki.wukong;
 
 import java.io.*;
+import java.time.Duration;
+import java.time.LocalTime;
+import java.util.Objects;
 
 public class OP {
     /**
@@ -50,9 +53,28 @@ public class OP {
             return (T) new ObjectInputStream(
                     new ByteArrayInputStream(bo.toByteArray())).readObject();
         } catch (IOException | ClassNotFoundException ignored) {
-            System.err.println(ignored.getMessage());
-            ignored.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * Clock-wise duration between the two specified local time. The {@code end} is
+     * always assumed to be after the {@code start} in clock time. If the {@code end}
+     * is smaller than the {@code start} numerically, the time crosses midnight.
+     *
+     * @param start local time start
+     * @param end local time end
+     * @return duration between the specified two local times
+     */
+    public static Duration between(LocalTime start, LocalTime end) {
+        Objects.requireNonNull(start, "local time start null");
+        Objects.requireNonNull(end, "local time end null");
+        if (start.isBefore(end))
+            return Duration.between(start, end);
+        else if (start.isAfter(end))
+            return Duration.between(start, LocalTime.MIDNIGHT.minusNanos(1))
+                    .plus(Duration.between(LocalTime.MIDNIGHT, end));
+        else
+            return Duration.ZERO;
     }
 }
