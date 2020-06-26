@@ -28,10 +28,15 @@
 
 package com.nabiki.wukong;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,8 +48,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class EasyFile {
     private final String path;
-    private final boolean isFile;
     private final Map<String, EasyFile> files = new ConcurrentHashMap<>();
+    private final Boolean isFile;
+    private boolean isEmpty = true;
 
     /**
      * Construct an file on the specified path.
@@ -60,26 +66,88 @@ public class EasyFile {
         ensure(Path.of(this.path), this.isFile);
     }
 
-    static void ensure(Path path, boolean isFile) throws IOException {
+    /*
+    The specified path may exist or not exist.
+    If it does not exist, create it.
+    If the file is directory and exists, read .index file in this directory and
+    load information.
+    */
+    void ensure(Path path, boolean isFile) throws IOException {
         Objects.requireNonNull(path, "path null");
         var file = path.toFile();
         if (file.exists()) {
-            if ((file.isFile() && isFile) || (file.isDirectory() && !isFile))
-                return;
-            else
+            if ((file.isFile() && !isFile) || (!file.isFile() && isFile))
                 throw new FileAlreadyExistsException(
                         "object exists but has wrong type");
+            // Load directory.
+            if ((file.isDirectory() && !isFile)) {
+                Map<String, String> m = null;
+                try {
+                    m = readIndex();
+                } catch (IOException e) {
+                    // Fail reading index, the directory exists but hasn't been
+                    // touched by this class.
+                    return;
+                }
+                for (var entry : m.entrySet()) {
+                    var p = Path.of(this.path, entry.getValue());
+                    if (!p.toFile().exists())
+                        throw new IOException("file missing " + p.toString());
+                    this.files.put(entry.getKey(),
+                            new EasyFile(p.toString(), p.toFile().isFile()));
+                    this.isEmpty = false;
+                }
+            }
+            // Is file empty?
+            if (file.length() > 0)
+                this.isEmpty = false;
+        } else {
+            // Not existent, or wrong type.
+            if (isFile)
+                Files.createFile(path);
+            else
+                Files.createDirectories(path);
         }
-        // Not existent, or wrong type.
-        if (isFile)
-            Files.createFile(path);
-        else
-            Files.createDirectories(path);
     }
 
-    void checkType() throws IOException {
+    void checkDir() throws IOException {
         if (this.isFile)
             throw new IOException("this object is not directory");
+    }
+
+    Map<String, String> readIndex() throws IOException {
+        var r = new HashMap<String, String>();
+        var indexPath = Path.of(this.path, ".index");
+        try (BufferedReader br = new BufferedReader(
+                new FileReader(indexPath.toFile()))) {
+            String key, path;
+            while ((key = readLine(br)) != null) {
+                path = br.readLine();
+                if (path == null)
+                    throw new IOException("last key misses value: " + key);
+                else
+                    r.put(key, path);
+            }
+            return r;
+        }
+    }
+
+    String readLine(BufferedReader reader) throws IOException {
+        String line;
+        do {
+            line = reader.readLine();
+        } while (line != null && line.length() == 0);
+        return line;
+    }
+
+    void writeIndex(String key, String relPath) throws IOException {
+        var indexPath = Path.of(this.path, ".index");
+        try (FileWriter fw =new FileWriter(indexPath.toFile(), true)) {
+            fw.write(key);
+            fw.write(System.lineSeparator());
+            fw.write(relPath);
+            fw.write(System.lineSeparator());
+        }
     }
 
     /**
@@ -97,10 +165,11 @@ public class EasyFile {
      * failed creating the directory, or this file object is not a directory
      */
     public EasyFile setDirectory(String key, String relPath) throws IOException {
-        checkType();
+        checkDir();
         this.files.put(key, new EasyFile(
                 Path.of(this.path, relPath).toAbsolutePath().toString(),
                 false));
+        writeIndex(key, relPath);
         return this;
     }
 
@@ -115,10 +184,11 @@ public class EasyFile {
      * creating the file, or this file object is not a directory
      */
     public EasyFile setFile(String key, String relPath) throws IOException {
-        checkType();
+        checkDir();
         this.files.put(key, new EasyFile(
                 Path.of(this.path, relPath).toAbsolutePath().toString(),
                 true));
+        writeIndex(key, relPath);
         return this;
     }
 
@@ -131,6 +201,11 @@ public class EasyFile {
      */
     public EasyFile get(String key) {
         return this.files.get(key);
+    }
+
+    public Collection<EasyFile> recursiveGet(String key) {
+        // TODO recursively find key
+        return null;
     }
 
     /**
@@ -149,5 +224,9 @@ public class EasyFile {
      */
     public boolean isFile() {
         return this.isFile;
+    }
+
+    public boolean isEmpty() {
+        return this.isEmpty;
     }
 }
