@@ -30,10 +30,12 @@ package com.nabiki.wukong.cfg;
 
 import com.nabiki.wukong.EasyFile;
 import com.nabiki.wukong.annotation.OutTeam;
+import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class Config {
@@ -46,7 +48,9 @@ public class Config {
     // Instrument product ID pattern.
     static Pattern productPattern = Pattern.compile("[a-zA-Z]+");
 
+    String tradingDay;
     EasyFile rootDirectory;
+    Map<String, InstrumentInfo> instrInfo = new ConcurrentHashMap<>();
 
     Config() {
     }
@@ -99,5 +103,28 @@ public class Config {
     @OutTeam
     public EasyFile getRootDirectory() {
         return this.rootDirectory;
+    }
+
+    /**
+     * Get the specified instrument's information containing instrument, commission
+     * and margin. If the instrument ID doesn't exist, return {@code null}.
+     *
+     * @param instrID instrument ID
+     * @return instrument's information
+     */
+    @OutTeam
+    public InstrumentInfo getInstrInfo(String instrID) {
+        return this.instrInfo.get(instrID);
+    }
+
+    /**
+     * Get today's trading day. If the value is not available, usually not login,
+     * return {@code null}.
+     *
+     * @return trading day
+     */
+    @OutTeam
+    public String getTradingDay() {
+        return this.tradingDay;
     }
 }
