@@ -37,6 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Market's time-related configuration.
+ *
+ * <p><b>Instance of the class is thread-safe.</b></p>
  */
 public class TradingHourKeeper {
     // (from, to]
@@ -58,8 +60,8 @@ public class TradingHourKeeper {
         }
     }
 
-    List<TradingHour> tradingHours = new LinkedList<>();
-    Map<Duration, Set<LocalTime>> durationSplits = new ConcurrentHashMap<>();
+    final List<TradingHour> tradingHours = new LinkedList<>();
+    final Map<Duration, Set<LocalTime>> durationSplits = new ConcurrentHashMap<>();
 
     TradingHourKeeper(TradingHour... hours) {
         this.tradingHours.addAll(Arrays.asList(hours));
@@ -132,5 +134,26 @@ public class TradingHourKeeper {
             if (!nextDu[0].equals(du))
                 times.add(next[0].minus(nextDu[0]));
         }
+    }
+
+    /**
+     * Check if the specified local time is between two trading days, when the
+     * market is closed.
+     *
+     * @param now local time now
+     * @return {@code true} if now is end of the previous trading day, {@code false}
+     * otherwise
+     */
+    public boolean isEndDay(LocalTime now) {
+        if (this.tradingHours.size() == 0)
+            return true;    // no trading hour so it's always end-of-day
+        if (contains(now))
+            return false;   // now is trading hour
+        var beg = this.tradingHours.get(0);
+        var end = this.tradingHours.get(this.tradingHours.size() - 1);
+        if (beg.from.isBefore(end.to))
+            return beg.from.isAfter(now) || end.to.isBefore(now);
+        else
+            return end.to.isBefore(now) && beg.from.isAfter(now);
     }
 }

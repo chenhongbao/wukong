@@ -42,11 +42,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * The class provides an easy way of managing file and directory. If it is directory,
  * it creates files and directories all as its sub-directories and files under this
  * directory. If it is a file, then it is just a file.
+ *
+ * <p><b>Instance of the class is thread-safe.</b>
+ * </p>
  */
 public class EasyFile {
     private final String path;
-    private final Map<String, EasyFile> files = new ConcurrentHashMap<>();
     private final Boolean isFile;
+    private final Map<String, EasyFile> files = new ConcurrentHashMap<>();
 
     /**
      * Construct an file on the specified path.
@@ -110,17 +113,19 @@ public class EasyFile {
     Map<String, String> readIndex() throws IOException {
         var r = new HashMap<String, String>();
         var indexPath = Path.of(this.path, ".index");
-        try (BufferedReader br = new BufferedReader(
-                new FileReader(indexPath.toFile()))) {
-            String key, path;
-            while ((key = readLine(br)) != null) {
-                path = br.readLine();
-                if (path == null)
-                    throw new IOException("last key misses value: " + key);
-                else
-                    r.put(key.trim(), path.trim());
+        synchronized (this) {
+            try (BufferedReader br = new BufferedReader(
+                    new FileReader(indexPath.toFile()))) {
+                String key, path;
+                while ((key = readLine(br)) != null) {
+                    path = br.readLine();
+                    if (path == null)
+                        throw new IOException("last key misses value: " + key);
+                    else
+                        r.put(key.trim(), path.trim());
+                }
+                return r;
             }
-            return r;
         }
     }
 
@@ -134,11 +139,14 @@ public class EasyFile {
 
     void writeIndex(String key, String relPath) throws IOException {
         var indexPath = Path.of(this.path, ".index");
-        try (FileWriter fw =new FileWriter(indexPath.toFile(), true)) {
-            fw.write(key);
-            fw.write(System.lineSeparator());
-            fw.write(relPath);
-            fw.write(System.lineSeparator());
+        synchronized (this) {
+            try (FileWriter fw
+                         = new FileWriter(indexPath.toFile(), true)) {
+                fw.write(key);
+                fw.write(System.lineSeparator());
+                fw.write(relPath);
+                fw.write(System.lineSeparator());
+            }
         }
     }
 
