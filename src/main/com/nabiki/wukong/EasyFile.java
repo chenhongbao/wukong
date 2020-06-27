@@ -28,10 +28,7 @@
 
 package com.nabiki.wukong;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -227,6 +224,15 @@ public class EasyFile {
      */
     public Path path() {
         return Path.of(this.path);
+    }
+
+    /**
+     * Get {@link File} of this object.
+     *
+     * @return {@link File} of this object
+     */
+    public File file() {
+        return path().toFile();
     }
 
     /**

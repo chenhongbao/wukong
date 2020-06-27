@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.cnf;
+package com.nabiki.wukong.cfg;
 
 import com.nabiki.wukong.EasyFile;
 import org.junit.Assert;

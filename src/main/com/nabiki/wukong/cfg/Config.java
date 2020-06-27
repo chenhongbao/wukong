@@ -26,20 +26,29 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.cnf;
+package com.nabiki.wukong.cfg;
 
-import com.nabiki.wukong.cnf.plain.LoginConfig;
+import com.nabiki.wukong.EasyFile;
+import com.nabiki.wukong.cfg.plain.LoginConfig;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 public class Config {
+    // Config's name -> LoginConfig
     final Map<String, LoginConfig> login = new HashMap<>();
+
+    // ProductID -> TradingHourKeeper
     final Map<String, TradingHourKeeper> tradingHour = new HashMap<>();
 
     // Instrument product ID pattern.
     static Pattern productPattern = Pattern.compile("[a-zA-Z]+");
+
+    EasyFile rootDirectory;
+
+    Config() {
+    }
 
     /**
      * Get login configurations.
@@ -79,6 +88,7 @@ public class Config {
             return null;
     }
 
-    Config() {
+    public EasyFile getRootDirectory() {
+        return this.rootDirectory;
     }
 }

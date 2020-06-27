@@ -28,7 +28,12 @@
 
 package com.nabiki.wukong;
 
+import com.google.gson.FieldNamingPolicy;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 import java.io.*;
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.LocalTime;
 import java.util.Objects;
@@ -76,5 +81,67 @@ public class OP {
                     .plus(Duration.between(LocalTime.MIDNIGHT, end)).plusNanos(1);
         else
             return Duration.ZERO;
+    }
+
+    private final static Gson gson;
+    static {
+        gson = new GsonBuilder()
+                .setFieldNamingPolicy(FieldNamingPolicy.IDENTITY)
+                .serializeNulls()
+                .setPrettyPrinting()
+                .create();
+    }
+
+    /**
+     * Parse the specified JSON string to object of the specified {@link Class}.
+     *
+     * @param json JSON string
+     * @param clz {@link Class} of the object
+     * @param <T> generic type of the object
+     * @return object parsed from the specified JSON string
+     * @throws IOException fail parsing JSON string
+     */
+    public static <T> T fromJson(String json, Class<T> clz) throws IOException {
+        try {
+            return gson.fromJson(json, clz);
+        } catch (com.google.gson.JsonSyntaxException e) {
+            throw new IOException("parse JSON string", e);
+        }
+    }
+
+    /**
+     * Encode the specified object into JSON string.
+     *
+     * @param obj object
+     * @return JSON string representing the specified object
+     */
+    public static String toJson(Object obj) {
+        return gson.toJson(obj);
+    }
+
+    public static String readText(File file, Charset charset) throws IOException {
+        try (InputStream is = new FileInputStream(file)) {
+            return new String(is.readAllBytes(), charset);
+        }
+    }
+
+    /**
+     * Write the specified string to the specified file, encoded into binary data
+     * with the specified charset.
+     *
+     * @param text the string to be written
+     * @param file file to be written to
+     * @param charset charset of the string to decode
+     * @param append if {@code true}, the content is appended to the end of the file
+     *               rather than the beginning
+     * @throws IOException if operation failed or file not found
+     */
+    public static void writeText(String text, File file, Charset charset,
+                                 boolean append) throws IOException {
+        Objects.requireNonNull(text);
+        try (OutputStream os = new FileOutputStream(file, append)) {
+            os.write(text.getBytes(charset));
+            os.flush();
+        }
     }
 }

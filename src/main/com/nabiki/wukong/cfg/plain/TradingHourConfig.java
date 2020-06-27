@@ -26,11 +26,36 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.cnf;
+package com.nabiki.wukong.cfg.plain;
 
-public class ConfigLoader {
-    public static Config config() {
-        // TODO load config
-        return null;
+import java.time.LocalTime;
+import java.util.List;
+
+/**
+ * Trading hour of products. All instruments of the same product trade in the same
+ * hours, so those instruments' trading hours are kept in name of their products.
+ */
+public class TradingHourConfig {
+    /**
+     * Single trading hour, (from, to].
+     */
+    public class SingleTradingHour {
+        public LocalTime from, to;
     }
+
+    /**
+     * Products that share the same trading hour.
+     */
+    public List<String> productID;
+
+    /**
+     * Ordered trading hours in a trading day. The first trading hour has the index
+     * of 0, then index of 1 and so forth.
+     */
+    public List<SingleTradingHour> tradingHour;
+
+    /**
+     * Name of this configuration.
+     */
+    public String name;
 }

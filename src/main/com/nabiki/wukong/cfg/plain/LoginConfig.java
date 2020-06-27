@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.cnf.plain;
+package com.nabiki.wukong.cfg.plain;
 
 /**
  * Configuration for login to remote counter.
