@@ -55,27 +55,53 @@ public class AliveOrder {
     private final UserPosition userPos;
     private final AliveOrderManager orderMgr;
     private final Config config;
+    private final CThostFtdcInputOrderField order;
+    private final CThostFtdcInputOrderActionField action;
 
     private Integer parseState;
 
-    AliveOrder(UserCash userCash, UserPosition userPos, AliveOrderManager mgr,
-               Config cfg) {
+    AliveOrder(CThostFtdcInputOrderField order, UserCash userCash,
+               UserPosition userPos, AliveOrderManager mgr, Config cfg) {
         this.userCash = userCash;
         this.userPos = userPos;
         this.orderMgr = mgr;
         this.config = cfg;
+        this.order = order;
+        this.action = null;
     }
 
-    int execOrder(CThostFtdcInputOrderField order) {
-        if (order == null || this.config == null)
+    AliveOrder(CThostFtdcInputOrderActionField action, UserCash userCash,
+               UserPosition userPos, AliveOrderManager mgr, Config cfg) {
+        this.userCash = userCash;
+        this.userPos = userPos;
+        this.orderMgr = mgr;
+        this.config = cfg;
+        this.order = null;
+        this.action = action;
+    }
+
+    boolean isAction() {
+        return this.action != null;
+    }
+
+    CThostFtdcInputOrderField originOrder() {
+        return this.order;
+    }
+
+    CThostFtdcInputOrderActionField originAction() {
+        return this.action;
+    }
+
+    int execOrder() {
+        if (this.order == null || this.config == null)
             throw new NullPointerException("parameter null");
-        if (order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
-            this.frozenCash = getFrozenCash(order);
+        if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
+            this.frozenCash = getFrozenCash(this.order);
             if (this.frozenCash == null)
                 return TThostFtdcErrorCode.INSUFFICIENT_MONEY;
-            return this.orderMgr.sendDetailOrder(order, this);
+            return this.orderMgr.sendDetailOrder(this.order, this);
         } else {
-            this.frozenPD = getFrozenPD(order);
+            this.frozenPD = getFrozenPD(this.order);
             if (this.frozenPD == null || this.frozenPD.size() == 0)
                 return TThostFtdcErrorCode.OVER_CLOSE_POSITION;
             // Send close request.
