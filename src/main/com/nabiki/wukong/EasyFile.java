@@ -35,10 +35,7 @@ import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -50,7 +47,6 @@ public class EasyFile {
     private final String path;
     private final Map<String, EasyFile> files = new ConcurrentHashMap<>();
     private final Boolean isFile;
-    private boolean isEmpty = true;
 
     /**
      * Construct an file on the specified path.
@@ -81,7 +77,7 @@ public class EasyFile {
                         "object exists but has wrong type");
             // Load directory.
             if ((file.isDirectory() && !isFile)) {
-                Map<String, String> m = null;
+                Map<String, String> m;
                 try {
                     m = readIndex();
                 } catch (IOException e) {
@@ -95,12 +91,8 @@ public class EasyFile {
                         throw new IOException("file missing " + p.toString());
                     this.files.put(entry.getKey(),
                             new EasyFile(p.toString(), p.toFile().isFile()));
-                    this.isEmpty = false;
                 }
             }
-            // Is file empty?
-            if (file.length() > 0)
-                this.isEmpty = false;
         } else {
             // Not existent, or wrong type.
             if (isFile)
@@ -126,7 +118,7 @@ public class EasyFile {
                 if (path == null)
                     throw new IOException("last key misses value: " + key);
                 else
-                    r.put(key, path);
+                    r.put(key.trim(), path.trim());
             }
             return r;
         }
@@ -203,9 +195,21 @@ public class EasyFile {
         return this.files.get(key);
     }
 
+    /**
+     * Search for object with the specified key recursively.
+     *
+     * @param key key of the object
+     * @return {@link Collection} of {@link EasyFile} objects with the specified key
+     */
     public Collection<EasyFile> recursiveGet(String key) {
-        // TODO recursively find key
-        return null;
+        var r = new HashSet<EasyFile>();
+        var f0 = this.files.get(key);
+        if (f0 != null)
+            r.add(f0);
+        for (var v : this.files.values())
+            if (!v.isFile())
+                r.addAll(v.recursiveGet(key));
+        return r;
     }
 
     /**
@@ -226,7 +230,16 @@ public class EasyFile {
         return this.isFile;
     }
 
+    /**
+     * Check whether this object represents an empty file or directory.
+     *
+     * @return {@code true} if the object represents an empty file or directory,
+     * {@code false} otherwise
+     */
     public boolean isEmpty() {
-        return this.isEmpty;
+        if (this.isFile)
+            return path().toFile().length() == 0;
+        else
+            return this.files.size() == 0;
     }
 }

@@ -79,8 +79,8 @@ public class EasyFileTest {
         try {
             root = new EasyFile(rootPath, false);
 
-            new EasyFile("duplicate_file", true);
-            new EasyFile("duplicate_file", false);
+            new EasyFile(rootPath + "\\duplicate_file", true);
+            new EasyFile(rootPath + "\\duplicate_file", false);
 
             Assert.fail("Should throw exception.");
         } catch (IOException e) {
@@ -100,6 +100,98 @@ public class EasyFileTest {
             Assert.fail("Should throw exception.");
         } catch (IOException e) {
             System.out.println(e.getMessage());
+        }
+    }
+
+    @Test
+    public void recursive() {
+        final String rootPath = "C:\\Users\\chenh\\Desktop\\recur_nice";
+
+        try {
+            var root = new EasyFile(rootPath, false);
+            if (!root.isEmpty())
+                throw new IllegalStateException("root dir is not empty");
+
+            root.setDirectory("dir.d0", "d0");
+            root.setFile("file.f0", "f0");
+            root.setFile("file.f1", "f1");
+
+            var x = root.get("file.f1");
+            Assert.assertNotNull("object null", x);
+            Assert.assertTrue("should be file", x.isFile());
+            Assert.assertTrue("should be empty", x.isEmpty());
+            Assert.assertFalse("shouldn't be empty", root.isEmpty());
+
+            // Recursive dirs.
+            var d0 = root.get("dir.d0");
+            Assert.assertTrue("should be empty", d0.isEmpty());
+
+            d0.setDirectory("dir.d1", "d1");
+            d0.setDirectory("dir.d2", "d2");
+            d0.setFile("file.f1", "f1");
+            d0.setFile("file.f2", "f2");
+
+            Assert.assertFalse("shouldn't be empty", d0.isEmpty());
+
+            var d2 = d0.get("dir.d2");
+            d2.setDirectory("dir.d2", "d2");
+            d2.setDirectory("dir.d3", "d3");
+
+            // Test recursive get dir from root.
+            var recurD2 = root.recursiveGet("dir.d2");
+            Assert.assertEquals("should have 2 directories 'd2'", 2, recurD2.size());
+            for (var f : recurD2)
+                Assert.assertFalse("should be directory", f.isFile());
+
+            // Test recursive get dir from d0.
+            recurD2 = d0.recursiveGet("dir.d2");
+            Assert.assertEquals("should have 2 directories 'd2'", 2, recurD2.size());
+            for (var f : recurD2)
+                Assert.assertFalse("should be directory", f.isFile());
+
+            var d3 = d2.get("dir.d3");
+            d3.setFile("file.f0", "f0");
+            d3.setFile("file.f4", "f4");
+
+            // Test recursive get file from root.
+            var recurF0 = root.recursiveGet("file.f0");
+            Assert.assertEquals("should have 2 files 'f0'", 2, recurF0.size());
+            for (var f : recurF0)
+                Assert.assertTrue("should be file", f.isFile());
+
+            // Test recursive get file from d2.
+            var recurF4 = d2.recursiveGet("file.f4");
+            Assert.assertEquals("only 1 object", 1, recurF4.size());
+            for (var f : recurF4)
+                Assert.assertTrue("should be file", f.isFile());
+
+            // Test get file from root, shouldn't find the file.
+            var f4 = root.get("file.f4");
+            Assert.assertNull("should be null", f4);
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
+        } catch (IllegalStateException e) {
+            System.out.println(e.getMessage() + ", skip creation test");
+        }
+
+        // Test load an existing directory.
+        try {
+            var root = new EasyFile(rootPath, false);
+
+            Assert.assertFalse("shouldn't be empty", rootPath.isEmpty());
+
+            // Test recursive get from root.
+            var d2 = root.recursiveGet("dir.d2");
+            Assert.assertEquals("should have 2 directories 'd2'", 2, d2.size());
+            for (var f : d2)
+                Assert.assertFalse("should be directory", f.isFile());
+
+            var f4 = root.recursiveGet("file.f4");
+            Assert.assertEquals("only 1 object", 1, f4.size());
+            for (var f : f4)
+                Assert.assertTrue("should be file", f.isFile());
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
         }
     }
 }
