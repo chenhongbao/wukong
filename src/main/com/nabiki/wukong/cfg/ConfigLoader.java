@@ -30,6 +30,7 @@ package com.nabiki.wukong.cfg;
 
 import com.nabiki.wukong.EasyFile;
 import com.nabiki.wukong.OP;
+import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.cfg.plain.TradingHourConfig;
 
@@ -44,6 +45,15 @@ public class ConfigLoader {
     static AtomicBoolean configLoaded = new AtomicBoolean(false);
     final static Config config = new Config();
 
+    /**
+     * Get single {@link Config} instance. If the instance exists, the method first
+     * clears the internal data then initializes again.
+     *
+     * @return instance of {@link Config}
+     * @throws IOException fail to read or process configuration files, or content
+     * in the configuration file is corrupted or invalid
+     */
+    @InTeam
     public static Config load() throws IOException {
         synchronized (config) {
             // Clear old config.

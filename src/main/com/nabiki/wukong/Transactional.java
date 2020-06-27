@@ -28,6 +28,8 @@
 
 package com.nabiki.wukong;
 
+import com.nabiki.wukong.annotation.OutTeam;
+
 import java.util.ConcurrentModificationException;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -53,6 +55,7 @@ public abstract class Transactional<T> implements java.io.Serializable {
      *
      * @return currently active object
      */
+    @OutTeam
     public T active() {
         synchronized (this) {
             return this.shadow != null ? this.shadow : this.origin;
@@ -85,6 +88,7 @@ public abstract class Transactional<T> implements java.io.Serializable {
      *
      * @return this transactional object
      */
+    @OutTeam
     public Transactional<T> transaction() {
         if (!exclude())
             throw new ConcurrentModificationException(
@@ -100,6 +104,7 @@ public abstract class Transactional<T> implements java.io.Serializable {
      * generic type object with a shadow object. This applies the real changes
      * to the object.
      */
+    @OutTeam
     public void commit() {
         if (!exclude())
             throw new ConcurrentModificationException(
@@ -115,6 +120,7 @@ public abstract class Transactional<T> implements java.io.Serializable {
      * Rollback changes to this object. The method erases the shadow object and
      * the original object is not touched.
      */
+    @OutTeam
     public void rollback() {
         if (!exclude())
             throw new ConcurrentModificationException(

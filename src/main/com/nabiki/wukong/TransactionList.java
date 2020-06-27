@@ -28,6 +28,8 @@
 
 package com.nabiki.wukong;
 
+import com.nabiki.wukong.annotation.OutTeam;
+
 import java.util.Collection;
 import java.util.ConcurrentModificationException;
 import java.util.Stack;
@@ -48,9 +50,20 @@ public class TransactionList extends ConcurrentLinkedDeque<Transactional<?>> {
     private boolean rollback = false;
     private Throwable cause;
 
+    /**
+     * Construct an empty list.
+     */
+    @OutTeam
     public TransactionList() {
     }
 
+    /**
+     * Construct a list containing the elements from the specified collection in
+     * order returned by collection's iterator.
+     *
+     * @param c collection to be placed into the constructed list
+     */
+    @OutTeam
     public TransactionList(Collection<? extends Transactional<?>> c) {
         super(c);
     }
@@ -61,6 +74,7 @@ public class TransactionList extends ConcurrentLinkedDeque<Transactional<?>> {
      * @return {@code true} if last transaction has rolled back, {@code false}
      *      other wise.
      */
+    @OutTeam
     public boolean isRollback() {
         return this.rollback;
     }
@@ -70,6 +84,7 @@ public class TransactionList extends ConcurrentLinkedDeque<Transactional<?>> {
      *
      * @return {@link Throwable}
      */
+    @OutTeam
     public Throwable getCause() {
         return this.cause;
     }
@@ -92,6 +107,7 @@ public class TransactionList extends ConcurrentLinkedDeque<Transactional<?>> {
      * @param action the specified consumer on elements.
      */
     @Override
+    @OutTeam
     public void forEach(Consumer<? super Transactional<?>> action) {
         // Reset error information.
         this.rollback = false;

@@ -31,6 +31,7 @@ package com.nabiki.wukong;
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.nabiki.wukong.annotation.OutTeam;
 
 import java.io.*;
 import java.nio.charset.Charset;
@@ -52,6 +53,7 @@ public class OP {
      * @return deep copying object
      */
     @SuppressWarnings("unchecked")
+    @OutTeam
     public static <T> T deepCopy(T copied) {
         try (ByteArrayOutputStream bo = new ByteArrayOutputStream()) {
             new ObjectOutputStream(bo).writeObject(copied);
@@ -71,6 +73,7 @@ public class OP {
      * @param end local time end
      * @return duration between the specified two local times
      */
+    @OutTeam
     public static Duration between(LocalTime start, LocalTime end) {
         Objects.requireNonNull(start, "local time start null");
         Objects.requireNonNull(end, "local time end null");
@@ -101,6 +104,7 @@ public class OP {
      * @return object parsed from the specified JSON string
      * @throws IOException fail parsing JSON string
      */
+    @OutTeam
     public static <T> T fromJson(String json, Class<T> clz) throws IOException {
         try {
             return gson.fromJson(json, clz);
@@ -115,10 +119,21 @@ public class OP {
      * @param obj object
      * @return JSON string representing the specified object
      */
+    @OutTeam
     public static String toJson(Object obj) {
         return gson.toJson(obj);
     }
 
+    /**
+     * Read from the specified file and parse and content into a string using the
+     * specified charset.
+     *
+     * @param file file to read from
+     * @param charset charset for the returned string
+     * @return string parsed from the content of the specified file
+     * @throws IOException fail to read the file
+     */
+    @OutTeam
     public static String readText(File file, Charset charset) throws IOException {
         try (InputStream is = new FileInputStream(file)) {
             return new String(is.readAllBytes(), charset);
@@ -136,6 +151,7 @@ public class OP {
      *               rather than the beginning
      * @throws IOException if operation failed or file not found
      */
+    @OutTeam
     public static void writeText(String text, File file, Charset charset,
                                  boolean append) throws IOException {
         Objects.requireNonNull(text);

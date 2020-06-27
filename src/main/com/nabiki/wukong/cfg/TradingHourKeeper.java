@@ -29,6 +29,7 @@
 package com.nabiki.wukong.cfg;
 
 import com.nabiki.wukong.OP;
+import com.nabiki.wukong.annotation.OutTeam;
 
 import java.time.Duration;
 import java.time.LocalTime;
@@ -74,6 +75,7 @@ public class TradingHourKeeper {
      * @return {@code true} if the specified local time is in the range, {@code false}
      * otherwise
      */
+    @OutTeam
     public boolean contains(LocalTime now) {
         for (var hour : this.tradingHours) {
             if (hour.contains(now))
@@ -92,6 +94,7 @@ public class TradingHourKeeper {
      * @return {@code true} if the specified local time is a sample under the specified
      * duration
      */
+    @OutTeam
     public boolean contains(Duration du, LocalTime now) {
         if (!this.durationSplits.containsKey(du))
             return false;
@@ -104,6 +107,7 @@ public class TradingHourKeeper {
      *
      * @param du duration between sampled time points
      */
+    @OutTeam
     public void sample(Duration du) {
         if (this.durationSplits.containsKey(du))
             return;
@@ -113,7 +117,7 @@ public class TradingHourKeeper {
         final Set<LocalTime> times = durationSplits.get(du);
         synchronized (times) {
             // Calculate splits.
-            final LocalTime[] next = {null};
+            final LocalTime[] next = {null}, to = {null};
             final Duration[] nextDu = {du};
             this.tradingHours.forEach(hour -> {
                 if (next[0] == null)
@@ -128,11 +132,13 @@ public class TradingHourKeeper {
                         break;
                     }
                 }
+                to[0] = hour.to;
+                next[0] = null;
             });
             // Finalize the calculation by adding the end of trading hour if next
             // possible local time exceeds the last trading hour.
             if (!nextDu[0].equals(du))
-                times.add(next[0].minus(nextDu[0]));
+                times.add(to[0]);
         }
     }
 
@@ -144,6 +150,7 @@ public class TradingHourKeeper {
      * @return {@code true} if now is end of the previous trading day, {@code false}
      * otherwise
      */
+    @OutTeam
     public boolean isEndDay(LocalTime now) {
         if (this.tradingHours.size() == 0)
             return true;    // no trading hour so it's always end-of-day

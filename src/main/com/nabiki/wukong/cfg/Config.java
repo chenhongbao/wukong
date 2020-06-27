@@ -29,6 +29,7 @@
 package com.nabiki.wukong.cfg;
 
 import com.nabiki.wukong.EasyFile;
+import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 
 import java.util.HashMap;
@@ -55,6 +56,7 @@ public class Config {
      *
      * @return {@link Map} of {@link LoginConfig#name} and {@link LoginConfig}
      */
+    @OutTeam
     public Map<String, LoginConfig> getLoginConfigs() {
         synchronized (this.login) {
             return this.login;
@@ -71,6 +73,7 @@ public class Config {
      * @param instrID instrument ID
      * @return trading hour configuration
      */
+    @OutTeam
     public TradingHourKeeper getTradingHour(String proID, String instrID) {
         synchronized (this.tradingHour) {
             if (proID != null)
@@ -88,6 +91,12 @@ public class Config {
             return null;
     }
 
+    /**
+     * Get root directory object.
+     *
+     * @return root directory object
+     */
+    @OutTeam
     public EasyFile getRootDirectory() {
         return this.rootDirectory;
     }

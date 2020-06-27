@@ -28,6 +28,8 @@
 
 package com.nabiki.wukong;
 
+import com.nabiki.wukong.annotation.OutTeam;
+
 import java.io.*;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -56,6 +58,7 @@ public class EasyFile {
      * @throws IOException if file on the specified path exists but has wrong type,
      * or fail creating file or directory, or this object is not a directory
      */
+    @OutTeam
     public EasyFile(String path, boolean isFile) throws IOException {
         this.path = Path.of(path).toAbsolutePath().toString();
         this.isFile = isFile;
@@ -68,7 +71,7 @@ public class EasyFile {
     If the file is directory and exists, read .index file in this directory and
     load information.
     */
-    void ensure(Path path, boolean isFile) throws IOException {
+    private void ensure(Path path, boolean isFile) throws IOException {
         Objects.requireNonNull(path, "path null");
         var file = path.toFile();
         if (file.exists()) {
@@ -102,12 +105,12 @@ public class EasyFile {
         }
     }
 
-    void checkDir() throws IOException {
+    private void checkDir() throws IOException {
         if (this.isFile)
             throw new IOException("this object is not directory");
     }
 
-    Map<String, String> readIndex() throws IOException {
+    private Map<String, String> readIndex() throws IOException {
         var r = new HashMap<String, String>();
         var indexPath = Path.of(this.path, ".index");
         synchronized (this) {
@@ -126,7 +129,7 @@ public class EasyFile {
         }
     }
 
-    String readLine(BufferedReader reader) throws IOException {
+    private String readLine(BufferedReader reader) throws IOException {
         String line;
         do {
             line = reader.readLine();
@@ -134,7 +137,7 @@ public class EasyFile {
         return line;
     }
 
-    void writeIndex(String key, String relPath) throws IOException {
+    private void writeIndex(String key, String relPath) throws IOException {
         var indexPath = Path.of(this.path, ".index");
         synchronized (this) {
             try (FileWriter fw
@@ -161,6 +164,7 @@ public class EasyFile {
      * @throws IOException if the specified path exists but not a directory, or
      * failed creating the directory, or this file object is not a directory
      */
+    @OutTeam
     public EasyFile setDirectory(String key, String relPath) throws IOException {
         checkDir();
         this.files.put(key, new EasyFile(
@@ -180,6 +184,7 @@ public class EasyFile {
      * @throws IOException if the specified path exists but not a file, or failed
      * creating the file, or this file object is not a directory
      */
+    @OutTeam
     public EasyFile setFile(String key, String relPath) throws IOException {
         checkDir();
         this.files.put(key, new EasyFile(
@@ -196,6 +201,7 @@ public class EasyFile {
      * @param key key mapped to the file
      * @return file object, or {@code null} if the key doesn't exist
      */
+    @OutTeam
     public EasyFile get(String key) {
         return this.files.get(key);
     }
@@ -206,6 +212,7 @@ public class EasyFile {
      * @param key key of the object
      * @return {@link Collection} of {@link EasyFile} objects with the specified key
      */
+    @OutTeam
     public Collection<EasyFile> recursiveGet(String key) {
         var r = new HashSet<EasyFile>();
         var f0 = this.files.get(key);
@@ -222,6 +229,7 @@ public class EasyFile {
      *
      * @return {@link Path} of this object
      */
+    @OutTeam
     public Path path() {
         return Path.of(this.path);
     }
@@ -231,6 +239,7 @@ public class EasyFile {
      *
      * @return {@link File} of this object
      */
+    @OutTeam
     public File file() {
         return path().toFile();
     }
@@ -240,6 +249,7 @@ public class EasyFile {
      *
      * @return {@code true} if this object is a file, {@code false} otherwise
      */
+    @OutTeam
     public boolean isFile() {
         return this.isFile;
     }
@@ -250,6 +260,7 @@ public class EasyFile {
      * @return {@code true} if the object represents an empty file or directory,
      * {@code false} otherwise
      */
+    @OutTeam
     public boolean isEmpty() {
         if (this.isFile)
             return path().toFile().length() == 0;
