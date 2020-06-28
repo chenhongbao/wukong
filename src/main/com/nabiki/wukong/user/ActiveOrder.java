@@ -34,12 +34,12 @@ import com.nabiki.ctp4j.jni.flag.TThostFtdcOrderStatusType;
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.wukong.Transactional;
 import com.nabiki.wukong.cfg.Config;
-import com.nabiki.wukong.ctp.AliveOrderManager;
+import com.nabiki.wukong.ctp.ActiveOrderManager;
 
 import java.util.List;
 import java.util.UUID;
 
-public class AliveOrder {
+public class ActiveOrder {
 
     static class TransFrozenPD extends Transactional<FrozenPositionDetail> {
         protected TransFrozenPD(FrozenPositionDetail origin) {
@@ -53,15 +53,15 @@ public class AliveOrder {
     private final UUID uuid = UUID.randomUUID();
     private final UserCash userCash;
     private final UserPosition userPos;
-    private final AliveOrderManager orderMgr;
+    private final ActiveOrderManager orderMgr;
     private final Config config;
     private final CThostFtdcInputOrderField order;
     private final CThostFtdcInputOrderActionField action;
 
     private Integer parseState;
 
-    AliveOrder(CThostFtdcInputOrderField order, UserCash userCash,
-               UserPosition userPos, AliveOrderManager mgr, Config cfg) {
+    ActiveOrder(CThostFtdcInputOrderField order, UserCash userCash,
+                UserPosition userPos, ActiveOrderManager mgr, Config cfg) {
         this.userCash = userCash;
         this.userPos = userPos;
         this.orderMgr = mgr;
@@ -70,8 +70,8 @@ public class AliveOrder {
         this.action = null;
     }
 
-    AliveOrder(CThostFtdcInputOrderActionField action, UserCash userCash,
-               UserPosition userPos, AliveOrderManager mgr, Config cfg) {
+    ActiveOrder(CThostFtdcInputOrderActionField action, UserCash userCash,
+                UserPosition userPos, ActiveOrderManager mgr, Config cfg) {
         this.userCash = userCash;
         this.userPos = userPos;
         this.orderMgr = mgr;
@@ -84,11 +84,11 @@ public class AliveOrder {
         return this.action != null;
     }
 
-    CThostFtdcInputOrderField originOrder() {
+    CThostFtdcInputOrderField getOriginOrder() {
         return this.order;
     }
 
-    CThostFtdcInputOrderActionField originAction() {
+    CThostFtdcInputOrderActionField getOriginAction() {
         return this.action;
     }
 
@@ -115,7 +115,7 @@ public class AliveOrder {
         }
     }
 
-    UUID getOrderUUID() {
+    public UUID getOrderUUID() {
         return this.uuid;
     }
 
@@ -131,7 +131,7 @@ public class AliveOrder {
         return null;
     }
 
-    void updateRtnOrder(CThostFtdcOrderField rtn) {
+    public void updateRtnOrder(CThostFtdcOrderField rtn) {
         if (rtn == null)
             throw new NullPointerException("return order null");
         char flag = (char)rtn.OrderStatus;
@@ -148,7 +148,7 @@ public class AliveOrder {
     // For position, update both frozen position and user position.
     // When query account, calculate the fields from yesterday's settlement and user
     // position.
-    void updateTrade(CThostFtdcTradeField trade) {
+    public void updateTrade(CThostFtdcTradeField trade) {
         if (trade == null)
             throw new NullPointerException("return trade null");
         var cashShare = toCommissionShare(trade);

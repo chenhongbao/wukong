@@ -28,6 +28,9 @@
 
 package com.nabiki.wukong.cfg;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentCommissionRateField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentMarginRateField;
 import com.nabiki.wukong.EasyFile;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
@@ -80,12 +83,59 @@ public class ConfigLoader {
     }
 
     @InTeam
-    public static void setInstrConfig(InstrumentInfo instrInfo) {
-        // TODO set instr at runtime
+    public static void setInstrConfig(CThostFtdcInstrumentField instr) {
+        synchronized (config.instrInfo) {
+            if (!config.instrInfo.containsKey(instr.InstrumentID))
+                config.instrInfo.put(instr.InstrumentID, new InstrumentInfo());
+            config.instrInfo.get(instr.InstrumentID).instrument = instr;
+        }
+    }
+
+    @InTeam
+    public static void setInstrConfig(
+            CThostFtdcInstrumentMarginRateField margin) {
+        synchronized (config.instrInfo) {
+            if (!config.instrInfo.containsKey(margin.InstrumentID))
+                config.instrInfo.put(margin.InstrumentID, new InstrumentInfo());
+            config.instrInfo.get(margin.InstrumentID).margin = margin;
+        }
+    }
+
+    @InTeam
+    public static void setInstrConfig(
+            CThostFtdcInstrumentCommissionRateField commission) {
+        synchronized (config.instrInfo) {
+            if (!config.instrInfo.containsKey(commission.InstrumentID))
+                config.instrInfo.put(commission.InstrumentID, new InstrumentInfo());
+            config.instrInfo.get(commission.InstrumentID).commission = commission;
+        }
     }
 
     private static void setInstrConfig() {
-        // TODO set instr from files
+        var dirs = config.getRootDirectory().recursiveGet("dir.flow.rsp");
+        if (dirs.size() == 0)
+            return;
+        for (var d : dirs) {
+            d.path().toFile().listFiles(file -> {
+                try {
+                    if (file.getName().startsWith("instrument")) {
+                        setInstrConfig(OP.fromJson(
+                                OP.readText(file, StandardCharsets.UTF_8),
+                                CThostFtdcInstrumentField.class));
+                    } else if (file.getName().startsWith("commission")) {
+                        setInstrConfig(OP.fromJson(
+                                OP.readText(file, StandardCharsets.UTF_8),
+                                CThostFtdcInstrumentCommissionRateField.class));
+                    } else if (file.getName().startsWith("margin")) {
+                        setInstrConfig(OP.fromJson(
+                                OP.readText(file, StandardCharsets.UTF_8),
+                                CThostFtdcInstrumentMarginRateField.class));
+                    }
+                } catch (IOException ignored) {
+                }
+                return false;
+            });
+        }
     }
 
     private static void clearConfig() {
@@ -185,9 +235,9 @@ public class ConfigLoader {
         var flow = root.get("dir.flow");
         flow.setDirectory("dir.flow.ctp", ".ctp");
         flow.setDirectory("dir.flow.req", ".req");
-        flow.setDirectory("dir.flow.rsp", ".rsp");
-        flow.setDirectory("dir.flow.qry", ".qry");
         flow.setDirectory("dir.flow.rtn", ".rtn");
+        flow.setDirectory("dir.flow.rsp", ".rsp");
+        flow.setDirectory("dir.flow.err", ".err");
 
         var ctp = flow.get("dir.flow.ctp");
         ctp.setDirectory("dir.flow.ctp.trader", ".trader");

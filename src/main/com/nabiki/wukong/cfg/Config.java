@@ -35,7 +35,6 @@ import com.nabiki.wukong.cfg.plain.LoginConfig;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
@@ -46,13 +45,15 @@ public class Config {
     // ProductID -> TradingHourKeeper
     final Map<String, TradingHourKeeper> tradingHour = new HashMap<>();
 
+    // Instrument ID -> InstrumentInfo
+    final Map<String, InstrumentInfo> instrInfo = new HashMap<>();
+
     // Instrument product ID pattern.
     static Pattern productPattern = Pattern.compile("[a-zA-Z]+");
 
     static Logger logger;
     String tradingDay;
     EasyFile rootDirectory;
-    Map<String, InstrumentInfo> instrInfo = new ConcurrentHashMap<>();
 
     Config() {
     }
@@ -116,7 +117,9 @@ public class Config {
      */
     @OutTeam
     public InstrumentInfo getInstrInfo(String instrID) {
-        return this.instrInfo.get(instrID);
+        synchronized (this.instrInfo) {
+            return this.instrInfo.get(instrID);
+        }
     }
 
     /**

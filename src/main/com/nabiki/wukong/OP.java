@@ -38,6 +38,7 @@ import java.nio.charset.Charset;
 import java.time.Duration;
 import java.time.LocalTime;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class OP {
     /**
@@ -159,5 +160,27 @@ public class OP {
             os.write(text.getBytes(charset));
             os.flush();
         }
+    }
+
+    private static final AtomicInteger incID = new AtomicInteger(0);
+
+    /**
+     * Get an auto increment ID.
+     *
+     * @return integer ID
+     */
+    public static int getIncrementID() {
+        return incID.incrementAndGet();
+    }
+
+    /**
+     * Check if the specified value is valid for price.
+     *
+     * @param price value to be checked
+     * @return {@code true} if the specified value is valid for price, {@code false}
+     * otherwise
+     */
+    public static boolean validPrice(double price) {
+        return 0.0D < price && price < Double.MAX_VALUE;
     }
 }
