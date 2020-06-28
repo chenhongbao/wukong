@@ -34,29 +34,33 @@ import com.nabiki.wukong.OP;
 import java.util.LinkedList;
 import java.util.List;
 
-public class UserPositionDetail
-        extends ParentAsset<CThostFtdcInvestorPositionDetailField> {
+public class UserPositionDetail {
+    private final CThostFtdcInvestorPositionDetailField total;
     private final List<FrozenPositionDetail> frozenPD = new LinkedList<>();
 
-    public void tradeShare(CThostFtdcInvestorPositionDetailField share,
+    UserPositionDetail(CThostFtdcInvestorPositionDetailField total) {
+        this.total = total;
+    }
+
+    public void closeShare(CThostFtdcInvestorPositionDetailField share,
                            long tradeCnt) {
-        super.total.CloseAmount += share.CloseAmount * tradeCnt;
-        super.total.CloseProfitByDate += share.CloseProfitByDate * tradeCnt;
-        super.total.CloseProfitByTrade += share.CloseProfitByTrade * tradeCnt;
-        super.total.CloseVolume += tradeCnt;
-        super.total.ExchMargin -= share.ExchMargin * tradeCnt;
-        super.total.Margin -= share.Margin * tradeCnt;
+        this.total.CloseAmount += share.CloseAmount * tradeCnt;
+        this.total.CloseProfitByDate += share.CloseProfitByDate * tradeCnt;
+        this.total.CloseProfitByTrade += share.CloseProfitByTrade * tradeCnt;
+        this.total.CloseVolume += tradeCnt;
+        this.total.ExchMargin -= share.ExchMargin * tradeCnt;
+        this.total.Margin -= share.Margin * tradeCnt;
     }
 
     long getAvailableVolume() {
         long frozen = 0;
         for (var pd : frozenPD)
             frozen += pd.getFrozenShareCount();
-        return super.total.Volume - super.total.CloseVolume - frozen;
+        return this.total.Volume - this.total.CloseVolume - frozen;
     }
 
     CThostFtdcInvestorPositionDetailField getDeepCopyTotal() {
-        return OP.deepCopy(super.total);
+        return OP.deepCopy(this.total);
     }
 
     void setFrozenPD(FrozenPositionDetail frzPD) {

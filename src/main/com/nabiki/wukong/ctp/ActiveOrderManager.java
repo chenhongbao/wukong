@@ -191,7 +191,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         var r = this.traderApi.ReqUserLogin(req, OP.getIncrementID());
         if (r != 0)
             this.config.getLogger().severe(
-                    formatLog("failed login request", null,
+                    OP.formatLog("failed login request", null,
                             null, r));
     }
 
@@ -202,7 +202,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         var r = this.traderApi.ReqUserLogout(req, OP.getIncrementID());
         if (r != 0)
             this.config.getLogger().warning(
-                    formatLog("failed logout request", null,
+                    OP.formatLog("failed logout request", null,
                             null, r));
     }
 
@@ -216,7 +216,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         var r = this.traderApi.ReqAuthenticate(req, OP.getIncrementID());
         if (r != 0)
             this.config.getLogger().severe(
-                    formatLog("failed authentication", null,
+                    OP.formatLog("failed authentication", null,
                             null, OP.getIncrementID()));
     }
 
@@ -229,7 +229,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         var r = this.traderApi.ReqSettlementInfoConfirm(req, OP.getIncrementID());
         if (r != 0)
             this.config.getLogger().severe(
-                    formatLog("failed confirm settlement", null,
+                    OP.formatLog("failed confirm settlement", null,
                             null, OP.getIncrementID()));
     }
 
@@ -245,12 +245,6 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         if (this.orderRef.get() == Integer.MAX_VALUE)
             this.orderRef.set(0);
         return String.valueOf(this.orderRef.incrementAndGet());
-    }
-
-    private String formatLog(String hint, String orderRef, String errMsg,
-                             int errCode) {
-        return hint + "[" + orderRef + "]" + errMsg +
-                "(" + errCode + ")";
     }
 
     /*
@@ -298,7 +292,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         var active = this.mapper.getActiveOrder(rtn.OrderRef);
         if (active == null) {
             this.config.getLogger().warning(
-                    formatLog("active order not found", rtn.OrderRef,
+                    OP.formatLog("active order not found", rtn.OrderRef,
                             null, 0));
             return;
         }
@@ -309,7 +303,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         var active = this.mapper.getActiveOrder(trade.OrderRef);
         if (active == null) {
             this.config.getLogger().warning(
-                    formatLog("active order not found", trade.OrderRef,
+                    OP.formatLog("active order not found", trade.OrderRef,
                             null, 0));
             return;
         }
@@ -321,7 +315,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         var r = this.traderApi.ReqQryInstrument(req, OP.getIncrementID());
         if (r != 0)
             this.config.getLogger().warning(
-                    formatLog("failed query instrument", null,
+                    OP.formatLog("failed query instrument", null,
                             null, r));
     }
 
@@ -333,7 +327,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
     @Override
     public void OnFrontDisconnected(int reason) {
         this.config.getLogger().warning(
-                formatLog("trader disconnected", null, null,
+                OP.formatLog("trader disconnected", null, null,
                         reason));
         this.isConnected = false;
     }
@@ -343,7 +337,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                                     CThostFtdcRspInfoField rspInfo) {
         this.flowWrt.writeErr(orderAction);
         this.config.getLogger().warning(
-                formatLog("failed action", orderAction.OrderRef,
+                OP.formatLog("failed action", orderAction.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
     }
 
@@ -352,7 +346,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                                     CThostFtdcRspInfoField rspInfo) {
         this.flowWrt.writeErr(inputOrder);
         this.config.getLogger().severe(
-                formatLog("failed order insertion", inputOrder.OrderRef,
+                OP.formatLog("failed order insertion", inputOrder.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
         // Failed order results in canceling the order.
         doRtnOrder(toCancelRtnOrder(inputOrder));
@@ -366,7 +360,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
             doLogin();
         else
             this.config.getLogger().severe(
-                    formatLog("failed authentication", null,
+                    OP.formatLog("failed authentication", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
     }
 
@@ -375,7 +369,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                            boolean isLast) {
         this.flowWrt.writeErr(rspInfo);
         this.config.getLogger().severe(
-                formatLog("unknown error", null, rspInfo.ErrorMsg,
+                OP.formatLog("unknown error", null, rspInfo.ErrorMsg,
                         rspInfo.ErrorID));
     }
 
@@ -385,7 +379,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                                  boolean isLast) {
         this.flowWrt.writeErr(inputOrderAction);
         this.config.getLogger().warning(
-                formatLog("failed action", inputOrderAction.OrderRef,
+                OP.formatLog("failed action", inputOrderAction.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
     }
 
@@ -395,7 +389,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                                  boolean isLast) {
         this.flowWrt.writeErr(inputOrder);
         this.config.getLogger().severe(
-                formatLog("failed order insertion", inputOrder.OrderRef,
+                OP.formatLog("failed order insertion", inputOrder.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
         // Failed order results in canceling the order.
         doRtnOrder(toCancelRtnOrder(inputOrder));
@@ -438,14 +432,14 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
             CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
         if (rspInfo.ErrorID == 0) {
             this.config.getLogger().fine(
-                    formatLog("successful login", null,
+                    OP.formatLog("successful login", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
             this.isConfirmed = true;
             // Query instruments.
             doQueryInstr();
         } else
             this.config.getLogger().severe(
-                    formatLog("failed settlement confirm", null,
+                    OP.formatLog("failed settlement confirm", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
     }
 
@@ -458,7 +452,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
             doRspLogin(rspUserLogin);
         } else
             this.config.getLogger().severe(
-                    formatLog("failed login", null, rspInfo.ErrorMsg,
+                    OP.formatLog("failed login", null, rspInfo.ErrorMsg,
                             rspInfo.ErrorID));
     }
 
@@ -468,12 +462,12 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                                 boolean isLast) {
         if (rspInfo.ErrorID == 0) {
             this.config.getLogger().fine(
-                    formatLog("successful logout", null,
+                    OP.formatLog("successful logout", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
             this.isConfirmed = false;
         } else
             this.config.getLogger().warning(
-                    formatLog("failed logout", null,
+                    OP.formatLog("failed logout", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
     }
 
@@ -512,14 +506,14 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                     OP.getIncrementID());
             if (r != 0)
                 config.getLogger().warning(
-                        formatLog("failed query margin", null,
+                        OP.formatLog("failed query margin", null,
                                 ins, r));
             // Sleep for 1.5 seconds
             try {
                 Thread.sleep(1500);
             } catch (InterruptedException e) {
                 config.getLogger().warning(
-                        formatLog("failed sleep", null,
+                        OP.formatLog("failed sleep", null,
                                 e.getMessage(), 0));
             }
 
@@ -531,7 +525,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                     OP.getIncrementID());
             if (r != 0)
                 config.getLogger().warning(
-                        formatLog("failed query commission", null,
+                        OP.formatLog("failed query commission", null,
                                 ins, r));
         }
 

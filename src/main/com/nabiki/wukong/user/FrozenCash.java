@@ -31,7 +31,32 @@ package com.nabiki.wukong.user;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 
 class FrozenCash {
-    void tradeShare(CThostFtdcTradingAccountField share, long tradeCnt) {
-        // TODO trade share
+    private final CThostFtdcTradingAccountField cash;
+    private AssetState state = AssetState.ONGOING;
+
+    FrozenCash(CThostFtdcTradingAccountField cash) {
+        this.cash = cash;
+    }
+
+    double getFrozenMargin() {
+        if (this.state == AssetState.CANCELED)
+            return 0;
+        else
+            return this.cash.FrozenMargin;
+    }
+
+    double getFrozenCommission() {
+        if (this.state == AssetState.CANCELED)
+            return 0;
+        else
+            return this.cash.FrozenCommission;
+    }
+
+    void cancel() {
+        this.state = AssetState.CANCELED;
+    }
+    void openShare(CThostFtdcTradingAccountField share, long tradeCnt) {
+        this.cash.FrozenCommission -= share.FrozenCommission * tradeCnt;
+        this.cash.FrozenMargin -= share.FrozenMargin * tradeCnt;
     }
 }

@@ -30,11 +30,14 @@ package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 
-public class UserCash extends ParentAsset<CThostFtdcTradingAccountField> {
-    private CThostFtdcTradingAccountField cashPool;
+public class UserCash {
+    private final CThostFtdcTradingAccountField total;
 
-    @Override
-    public void tradeShare(CThostFtdcTradingAccountField share, long tradeCnt) {
-        super.total.Commission += share.Commission * tradeCnt;
+    UserCash(CThostFtdcTradingAccountField total) {
+        this.total = total;
+    }
+
+    void tradeShare(CThostFtdcTradingAccountField share, long tradeCnt) {
+        this.total.Commission += share.Commission * tradeCnt;
     }
 }

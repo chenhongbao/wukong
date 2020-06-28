@@ -30,6 +30,7 @@ package com.nabiki.wukong.ctp;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
+import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.user.ActiveOrder;
 
@@ -98,7 +99,7 @@ public class OrderMapper {
      */
     @InTeam
     public Set<String> getDetailRef(UUID uuid) {
-        return this.uuid2DetRef.get(uuid);
+        return OP.deepCopy(this.uuid2DetRef.get(uuid));
     }
 
     /**

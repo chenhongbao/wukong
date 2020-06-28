@@ -183,4 +183,18 @@ public class OP {
     public static boolean validPrice(double price) {
         return 0.0D < price && price < Double.MAX_VALUE;
     }
+
+    /**
+     * Format log.
+     *
+     * @param hint description
+     * @param orderRef order reference if it has
+     * @param errMsg error message if it has
+     * @param errCode error code if it has
+     * @return log string
+     */
+    public static String formatLog(String hint, String orderRef, String errMsg,
+                             int errCode) {
+        return String.format("%s[%s]%s(%d)", hint, orderRef, errMsg, errCode);
+    }
 }

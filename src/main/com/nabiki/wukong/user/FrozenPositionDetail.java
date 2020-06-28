@@ -59,7 +59,7 @@ public class FrozenPositionDetail {
             return this.totalShareCount - tradedShareCount;
     }
 
-    void tradeShare(long tradeCnt) {
+    void closeShare(long tradeCnt) {
         if (tradeCnt < 0)
             throw new IllegalArgumentException("negative traded share count");
         if (getFrozenShareCount() < tradeCnt)

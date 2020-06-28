@@ -32,12 +32,12 @@ import com.nabiki.ctp4j.jni.flag.TThostFtdcCombOffsetFlagType;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorCode;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcOrderStatusType;
 import com.nabiki.ctp4j.jni.struct.*;
+import com.nabiki.wukong.OP;
 import com.nabiki.wukong.Transactional;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.ctp.ActiveOrderManager;
 
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 public class ActiveOrder {
 
@@ -48,7 +48,7 @@ public class ActiveOrder {
     }
 
     private FrozenCash frozenCash;
-    private List<FrozenPositionDetail> frozenPD;
+    private Map<String, FrozenPositionDetail> frozenPD;
 
     private final UUID uuid = UUID.randomUUID();
     private final UserCash userCash;
@@ -101,18 +101,39 @@ public class ActiveOrder {
                 return TThostFtdcErrorCode.INSUFFICIENT_MONEY;
             return this.orderMgr.sendDetailOrder(this.order, this);
         } else {
-            this.frozenPD = getFrozenPD(this.order);
-            if (this.frozenPD == null || this.frozenPD.size() == 0)
+            var pds = getFrozenPD(this.order);
+            if (pds == null || pds.size() == 0)
                 return TThostFtdcErrorCode.OVER_CLOSE_POSITION;
+            Set<String> refs = new HashSet<>();
+            this.frozenPD = new HashMap<>();
             // Send close request.
             int ret = 0;
-            for (var p : this.frozenPD) {
+            for (var p : pds) {
                 var x = this.orderMgr.sendDetailOrder(toCloseOrder(p), this);
+                // Map order reference to frozen position.
+                var ref = findRef(refs,
+                        this.orderMgr.getMapper().getDetailRef(getOrderUUID()));
+                this.frozenPD.put(ref, p);
+                // Update used ref.
+                refs.add(ref);
                 if (x != 0)
                     ret = x;
             }
             return ret;
         }
+    }
+
+    String findRef(Set<String> oldSet, Set<String> newSet) {
+        if (oldSet.size() >= newSet.size())
+            throw new IllegalStateException(
+                    "old set has more elements than new set");
+        for (var s : newSet) {
+            if (!oldSet.contains(s))
+                return s;
+        }
+        this.config.getLogger().warning(
+                "order ref for new detailed order not found");
+        return null;
     }
 
     public UUID getOrderUUID() {
@@ -138,8 +159,29 @@ public class ActiveOrder {
         if (flag == TThostFtdcOrderStatusType.CANCELED) {
             if (rtn.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
                 // Cancel cash.
+                if (this.frozenCash == null) {
+                    this.config.getLogger().severe(
+                            OP.formatLog("no frozen cash",
+                                    rtn.OrderRef, null, 0));
+                    return;
+                }
+                this.frozenCash.cancel();
             } else {
+                if (this.frozenPD == null || this.frozenPD.size() == 0) {
+                    this.config.getLogger().severe(
+                            OP.formatLog("no frozen position",
+                                    rtn.OrderRef, null, 0));
+                    return;
+                }
                 // Cancel position.
+                var p = this.frozenPD.get(rtn.OrderRef);
+                if (p == null) {
+                    this.config.getLogger().severe(
+                            OP.formatLog("frozen position not found",
+                                    rtn.OrderRef, null, 0));
+                    return;
+                }
+                p.cancel();
             }
         }
     }
@@ -151,41 +193,47 @@ public class ActiveOrder {
     public void updateTrade(CThostFtdcTradeField trade) {
         if (trade == null)
             throw new NullPointerException("return trade null");
-        var cashShare = toCommissionShare(trade);
-        if (cashShare == null)
+        var commissionShare = toCommissionShare(trade);
+        if (commissionShare == null)
             throw new NullPointerException("commission share null");
         var volume = trade.Volume;
         if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
             // Open.
+            if (this.frozenCash == null) {
+                this.config.getLogger().severe(
+                        OP.formatLog("no frozen cash",
+                                trade.OrderRef, null, 0));
+                return;
+            }
             var share = toCashShare(trade);
             if (share == null)
                 throw new NullPointerException("cash share null");
             // Update frozen cash, user cash and user position.
-            this.frozenCash.tradeShare(share, volume);
-            this.userCash.tradeShare(cashShare, volume);
+            this.frozenCash.openShare(share, volume);
+            this.userCash.tradeShare(commissionShare, volume);
             this.userPos.getUserPD(trade.InstrumentID).add(toUserPosition(trade));
         } else {
             // Close.
+            if (this.frozenPD == null || this.frozenPD.size() == 0) {
+                this.config.getLogger().severe(
+                        OP.formatLog("no frozen position",
+                                trade.OrderRef, null, 0));
+                return;
+            }
             var share = toPositionShare(trade);
             if (share == null)
                 throw new IllegalStateException("position share null");
             // Update user position, frozen position and user cash.
-            for (var p : frozenPD) {
-                var vol = Math.min(p.getFrozenShareCount(), volume);
-                // Update cash and position.
-                p.tradeShare(vol);
-                p.getParent().tradeShare(share, vol);
-                this.userCash.tradeShare(cashShare, vol);
-                // Count down.
-                volume -= vol;
-                if (volume == 0)
-                    break;
-                else if (volume < 0)
-                    throw new IllegalStateException(
-                            "update more position than closed");
+            var p = this.frozenPD.get(trade.OrderRef);
+            if (p == null) {
+                this.config.getLogger().severe(
+                        OP.formatLog("frozen position not found",
+                                trade.OrderRef, null, 0));
+                return;
             }
-            if (volume > 0)
-                throw new IllegalStateException("close more positions then owned");
+            p.closeShare(trade.Volume);
+            p.getParent().closeShare(share, trade.Volume);
+            this.userCash.tradeShare(commissionShare, trade.Volume);
         }
     }
 
