@@ -29,6 +29,7 @@
 package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.flag.TThostFtdcCombOffsetFlagType;
+import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorCode;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcOrderStatusType;
 import com.nabiki.ctp4j.jni.struct.*;
@@ -73,15 +74,18 @@ public class ActiveOrder {
         this.action = action;
     }
 
-    boolean isAction() {
+    @InTeam
+    public boolean isAction() {
         return this.action != null;
     }
 
-    CThostFtdcInputOrderField getOriginOrder() {
+    @InTeam
+    public CThostFtdcInputOrderField getOriginOrder() {
         return this.order;
     }
 
-    CThostFtdcInputOrderActionField getOriginAction() {
+    @InTeam
+    public CThostFtdcInputOrderActionField getOriginAction() {
         return this.action;
     }
 
@@ -143,7 +147,7 @@ public class ActiveOrder {
 
     private CThostFtdcInputOrderField toCloseOrder(FrozenPositionDetail pd) {
         var cls = OP.deepCopy(getOriginOrder());
-        cls.VolumeTotalOriginal = (int)pd.getFrozenShareCount();
+        cls.VolumeTotalOriginal = (int) pd.getFrozenShareCount();
         if (pd.getFrozenShare().TradingDay.compareTo(this.config.getTradingDay()) != 0) {
             // Yesterday.
             cls.CombOffsetFlag = TThostFtdcCombOffsetFlagType.OFFSET_CLOSE_YESTERDAY;
@@ -154,10 +158,16 @@ public class ActiveOrder {
         return cls;
     }
 
+    /**
+     * Update return order. The only flag it cares is {@code CANCEL} because
+     * canceling an order affects the position and frozen money.
+     *
+     * @param rtn return order
+     */
     public void updateRtnOrder(CThostFtdcOrderField rtn) {
         if (rtn == null)
             throw new NullPointerException("return order null");
-        char flag = (char)rtn.OrderStatus;
+        char flag = (char) rtn.OrderStatus;
         if (flag == TThostFtdcOrderStatusType.CANCELED) {
             if (rtn.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
                 // Cancel cash.
@@ -224,9 +234,6 @@ public class ActiveOrder {
                                 trade.OrderRef, null, 0));
                 return;
             }
-            var share = toPositionShare(trade);
-            if (share == null)
-                throw new IllegalStateException("position share null");
             // Update user position, frozen position and user cash.
             var p = this.frozenPD.get(trade.OrderRef);
             if (p == null) {
@@ -235,12 +242,13 @@ public class ActiveOrder {
                                 trade.OrderRef, null, 0));
                 return;
             }
-            if(p.getFrozenShareCount() < trade.Volume) {
+            if (p.getFrozenShareCount() < trade.Volume) {
                 this.config.getLogger().severe(
                         OP.formatLog("not enough frozen position",
                                 trade.OrderRef, null, 0));
                 return;
             }
+            var share = toPositionShare(p.getFrozenShare(), trade);
             // Check the frozen position OK, here won't throw exception.
             p.closeShare(trade.Volume);
             p.getParent().closeShare(share, trade.Volume);
@@ -249,12 +257,80 @@ public class ActiveOrder {
     }
 
     private CThostFtdcInvestorPositionDetailField toPositionShare(
-            CThostFtdcTradeField trade) {
-        return null;
+            CThostFtdcInvestorPositionDetailField p, CThostFtdcTradeField trade) {
+        var r = OP.deepCopy(p);
+        var instr = this.config.getInstrInfo(trade.InstrumentID);
+        if (instr == null || instr.instrument == null)
+            throw new NullPointerException(
+                    "instr(" + trade.InstrumentID + ") info null");
+
+        r.CloseAmount = trade.Price * instr.instrument.VolumeMultiple;
+        if (p.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
+            // Long position.
+            r.CloseProfitByTrade = (trade.Price - p.OpenPrice)
+                    * instr.instrument.VolumeMultiple;
+            r.CloseProfitByDate = (trade.Price - p.LastSettlementPrice)
+                    * instr.instrument.VolumeMultiple;
+        } else {
+            // Short position.
+            r.CloseProfitByTrade = (p.OpenPrice - trade.Price)
+                    * instr.instrument.VolumeMultiple;
+            r.CloseProfitByDate = (p.LastSettlementPrice - trade.Price)
+                    * instr.instrument.VolumeMultiple;
+        }
+        return r;
     }
 
     private UserPositionDetail toUserPosition(CThostFtdcTradeField trade) {
-        return null;
+        var d = new CThostFtdcInvestorPositionDetailField();
+        d.InvestorID = trade.InvestorID;
+        d.BrokerID = trade.BrokerID;
+        d.Volume = trade.Volume;
+        d.OpenPrice = trade.Price;
+        d.Direction = trade.Direction;
+        d.ExchangeID = trade.ExchangeID;
+        d.HedgeFlag = trade.HedgeFlag;
+        d.InstrumentID = trade.InstrumentID;
+        d.OpenDate = trade.TradeDate;
+        d.TradeID = trade.TradeID;
+        d.TradeType = trade.TradeType;
+        d.TradingDay = trade.TradingDay;
+        d.InvestUnitID = trade.InvestUnitID;
+        d.SettlementID = trade.SettlementID;
+        // Calculate margin.
+        var instr = this.config.getInstrInfo(trade.InstrumentID);
+        if (instr == null || instr.instrument == null || instr.margin == null)
+            throw new NullPointerException(
+                    "instr(" + trade.InstrumentID + ") info null");
+        // Decide margin rates.
+        if (d.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
+            d.MarginRateByMoney = instr.margin.LongMarginRatioByMoney;
+            d.MarginRateByVolume = instr.margin.LongMarginRatioByVolume;
+        } else {
+            d.MarginRateByMoney = instr.margin.ShortMarginRatioByMoney;
+            d.MarginRateByVolume = instr.margin.ShortMarginRatioByVolume;
+        }
+        // Calculate margin.
+        var depth = this.config.getDepthMarketData(trade.InstrumentID);
+        if (depth != null) {
+            d.LastSettlementPrice = depth.PreSettlementPrice;
+            if (d.MarginRateByMoney > 0)
+                d.Margin = d.Volume * instr.instrument.VolumeMultiple
+                        * d.LastSettlementPrice * d.MarginRateByMoney;
+            else
+                d.Margin = d.Volume * d.MarginRateByVolume;
+        }
+        // Default values.
+        d.CloseVolume = 0;
+        d.CloseAmount = 0.0D;
+        d.PositionProfitByDate = 0.0D;
+        d.PositionProfitByTrade = 0.0D;
+        d.CloseProfitByDate = 0.0D;
+        d.CloseProfitByTrade = 0.0D;
+        d.SettlementPrice = 0.0D;
+        d.TimeFirstVolume = 0;
+        d.CombInstrumentID = "";
+        return new UserPositionDetail(d);
     }
 
     // Only commission.

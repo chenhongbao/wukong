@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.ctp;
+package com.nabiki.wukong.olap;
 
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.wukong.OP;
@@ -45,16 +45,18 @@ public class FlowWriter {
     private final Path reqDir, rtnDir, rspDir, errDir;
     private final DateTimeFormatter formatter
             = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSSSSS");
+    private final FlowWriterDB db;
 
-    FlowWriter(Config cfg) {
+    public FlowWriter(Config cfg) {
         this.config = cfg;
+        this.db = new FlowWriterDB(this.config);
         this.reqDir = getPath("dir.flow.req");
         this.rtnDir = getPath("dir.flow.rtn");
         this.rspDir = getPath("dir.flow.rsp");
         this.errDir = getPath("dir.flow.err");
     }
 
-    Path getPath(String key) {
+    private Path getPath(String key) {
         var dirs = this.config.getRootDirectory().recursiveGet(key);
         if (dirs.size() > 0)
             return dirs.iterator().next().path();
@@ -62,7 +64,7 @@ public class FlowWriter {
             return Path.of("");
     }
 
-    void write(String text, File file) {
+    private void write(String text, File file) {
         try {
             OP.writeText(text, file, StandardCharsets.UTF_8, false);
         } catch (IOException e) {
@@ -71,7 +73,7 @@ public class FlowWriter {
         }
     }
 
-    File ensureFile(Path root, String fn) {
+    private File ensureFile(Path root, String fn) {
         try {
             if (!Files.exists(root))
                 Files.createDirectories(root);
@@ -86,71 +88,73 @@ public class FlowWriter {
         }
     }
 
-    String getTimeStamp() {
+    private String getTimeStamp() {
         return LocalDateTime.now().format(this.formatter);
     }
 
-    void writeRtn(CThostFtdcOrderField rtn) {
+    public void writeRtn(CThostFtdcOrderField rtn) {
         write(OP.toJson(rtn),
                 ensureFile(this.rtnDir,
                         "order." + getTimeStamp() + ".json"));
+        this.db.write(rtn);
     }
 
-    void writeRtn(CThostFtdcTradeField rtn) {
+    public void writeRtn(CThostFtdcTradeField rtn) {
         write(OP.toJson(rtn),
                 ensureFile(this.rtnDir,
                         "trade." + getTimeStamp() + ".json"));
+        this.db.write(rtn);
     }
 
-    void writeReq(CThostFtdcInputOrderField req) {
+    public void writeReq(CThostFtdcInputOrderField req) {
         write(OP.toJson(req),
                 ensureFile(this.reqDir,
                         "inputorder." + getTimeStamp() + ".json"));
     }
 
-    void writeReq(CThostFtdcInputOrderActionField req) {
+    public void writeReq(CThostFtdcInputOrderActionField req) {
         write(OP.toJson(req),
                 ensureFile(this.reqDir,
                         "action." + getTimeStamp() + ".json"));
     }
 
-    void writeRsp(CThostFtdcInstrumentMarginRateField rsp) {
+    public void writeRsp(CThostFtdcInstrumentMarginRateField rsp) {
         write(OP.toJson(rsp),
                 ensureFile(this.rspDir,
                         "margin." + getTimeStamp() + ".json"));
     }
 
-    void writeRsp(CThostFtdcInstrumentCommissionRateField rsp) {
+    public void writeRsp(CThostFtdcInstrumentCommissionRateField rsp) {
         write(OP.toJson(rsp),
                 ensureFile(this.rspDir,
                         "commission." + getTimeStamp() + ".json"));
     }
 
-    void writeRsp(CThostFtdcInstrumentField rsp) {
+    public void writeRsp(CThostFtdcInstrumentField rsp) {
         write(OP.toJson(rsp),
                 ensureFile(this.rspDir,
                         "instrument." + getTimeStamp() + ".json"));
     }
 
-    void writeErr(CThostFtdcOrderActionField err) {
+    public void writeErr(CThostFtdcOrderActionField err) {
         write(OP.toJson(err),
                 ensureFile(this.errDir,
                         "orderaction." + getTimeStamp() + ".json"));
     }
 
-    void writeErr(CThostFtdcInputOrderActionField err) {
+    public void writeErr(CThostFtdcInputOrderActionField err) {
         write(OP.toJson(err),
                 ensureFile(this.errDir,
                         "action." + getTimeStamp() + ".json"));
     }
 
-    void writeErr(CThostFtdcInputOrderField err) {
+    public void writeErr(CThostFtdcInputOrderField err) {
         write(OP.toJson(err),
                 ensureFile(this.errDir,
                         "inputorder." + getTimeStamp() + ".json"));
     }
 
-    void writeErr(CThostFtdcRspInfoField err) {
+    public void writeErr(CThostFtdcRspInfoField err) {
         write(OP.toJson(err),
                 ensureFile(this.errDir,
                         "info." + getTimeStamp() + ".json"));

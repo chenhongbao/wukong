@@ -26,44 +26,21 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.olap;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
-import com.nabiki.wukong.OP;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
+import com.nabiki.wukong.cfg.Config;
 
-import java.util.LinkedList;
-import java.util.List;
-
-public class UserPositionDetail {
-    private final CThostFtdcInvestorPositionDetailField total;
-    private final List<FrozenPositionDetail> frozenPD = new LinkedList<>();
-
-    UserPositionDetail(CThostFtdcInvestorPositionDetailField total) {
-        this.total = total;
+public class FlowWriterDB {
+    FlowWriterDB(Config cfg) {
     }
 
-    public void closeShare(CThostFtdcInvestorPositionDetailField share,
-                           long tradeCnt) {
-        this.total.CloseAmount += share.CloseAmount * tradeCnt;
-        this.total.CloseProfitByDate += share.CloseProfitByDate * tradeCnt;
-        this.total.CloseProfitByTrade += share.CloseProfitByTrade * tradeCnt;
-        this.total.CloseVolume += share.CloseVolume * tradeCnt;
-        this.total.ExchMargin -= share.ExchMargin * tradeCnt;
-        this.total.Margin -= share.Margin * tradeCnt;
+    void write(CThostFtdcOrderField oder) {
+        // TODO write order to db
     }
 
-    long getAvailableVolume() {
-        long frozen = 0;
-        for (var pd : frozenPD)
-            frozen += pd.getFrozenShareCount();
-        return this.total.Volume - this.total.CloseVolume - frozen;
-    }
-
-    CThostFtdcInvestorPositionDetailField getDeepCopyTotal() {
-        return OP.deepCopy(this.total);
-    }
-
-    void setFrozenPD(FrozenPositionDetail frzPD) {
-        // TODO set frozen pd
+    void write(CThostFtdcTradeField trade) {
+        // TODO write trade to db
     }
 }

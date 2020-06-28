@@ -28,6 +28,7 @@
 
 package com.nabiki.wukong.cfg;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.EasyFile;
 import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.cfg.plain.InstrumentInfo;
@@ -47,6 +48,9 @@ public class Config {
 
     // Instrument ID -> InstrumentInfo
     final Map<String, InstrumentInfo> instrInfo = new HashMap<>();
+
+    // Instrument ID -> Depth market data
+    final Map<String, CThostFtdcDepthMarketDataField> depths = new HashMap<>();
 
     // Instrument product ID pattern.
     static Pattern productPattern = Pattern.compile("[a-zA-Z]+");
@@ -141,5 +145,17 @@ public class Config {
     @OutTeam
     public Logger getLogger() {
         return Config.logger;
+    }
+
+    /**
+     * Get the latest depth market data.
+     *
+     * @param instr instrument ID
+     * @return {@link CThostFtdcDepthMarketDataField} or {@code null} if not found
+     */
+    public CThostFtdcDepthMarketDataField getDepthMarketData(String instr) {
+        synchronized (this.depths) {
+            return this.depths.get(instr);
+        }
     }
 }

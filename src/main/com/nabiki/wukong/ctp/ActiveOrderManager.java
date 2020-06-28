@@ -38,6 +38,7 @@ import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.ConfigLoader;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
+import com.nabiki.wukong.olap.FlowWriter;
 import com.nabiki.wukong.user.ActiveOrder;
 
 import java.util.*;
@@ -296,6 +297,11 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                             null, 0));
             return;
         }
+        // Adjust user.
+        rtn.BrokerID = active.getOriginOrder().BrokerID;
+        rtn.UserID = active.getOriginOrder().UserID;
+        rtn.InvestorID = active.getOriginOrder().InvestorID;
+        rtn.AccountID = active.getOriginOrder().AccountID;
         active.updateRtnOrder(rtn);
     }
 
@@ -307,6 +313,10 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
                             null, 0));
             return;
         }
+        // Adjust user.
+        trade.BrokerID = active.getOriginOrder().BrokerID;
+        trade.UserID = active.getOriginOrder().UserID;
+        trade.InvestorID = active.getOriginOrder().InvestorID;
         active.updateTrade(trade);
     }
 
