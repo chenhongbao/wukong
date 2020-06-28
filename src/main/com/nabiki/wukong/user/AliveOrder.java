@@ -135,9 +135,13 @@ public class AliveOrder {
         if (rtn == null)
             throw new NullPointerException("return order null");
         char flag = (char)rtn.OrderStatus;
-        if (flag == TThostFtdcOrderStatusType.CANCELED)
-            for (var p : this.frozenPD)
-                p.cancel();
+        if (flag == TThostFtdcOrderStatusType.CANCELED) {
+            if (rtn.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
+                // Cancel cash.
+            } else {
+                // Cancel position.
+            }
+        }
     }
 
     // For cash, just update commission.

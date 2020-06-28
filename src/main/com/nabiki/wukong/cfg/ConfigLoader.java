@@ -31,13 +31,18 @@ package com.nabiki.wukong.cfg;
 import com.nabiki.wukong.EasyFile;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.cfg.plain.TradingHourConfig;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.FileHandler;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
 public class ConfigLoader {
     public static String rootPath;
@@ -63,14 +68,32 @@ public class ConfigLoader {
             setDirectories();
             setLoginConfig();
             setTradingHourConfig();
+            setConfigLogger();
+            setInstrConfig();
         }
         return config;
     }
 
+    @InTeam
+    public static void setTradingDay(String day) {
+        config.tradingDay = day;
+    }
+
+    @InTeam
+    public static void setInstrConfig(InstrumentInfo instrInfo) {
+        // TODO set instr at runtime
+    }
+
+    private static void setInstrConfig() {
+        // TODO set instr from files
+    }
+
     private static void clearConfig() {
         config.rootDirectory = null;
+        config.tradingDay = null;
         config.tradingHour.clear();
         config.login.clear();
+        config.instrInfo.clear();
     }
 
     private static void setTradingHourConfig() throws IOException {
@@ -153,6 +176,7 @@ public class ConfigLoader {
         root.setDirectory("dir.cfg", ".cfg");
         root.setDirectory("dir.flow", ".flow");
         root.setDirectory("dir.cdl", ".cdl");
+        root.setDirectory("dir.log", ".log");
 
         var cfg = root.get("dir.cfg");
         cfg.setDirectory("dir.cfg.login", ".login");
@@ -171,5 +195,30 @@ public class ConfigLoader {
 
         // Set config.
         config.rootDirectory = root;
+    }
+
+    private static void setConfigLogger() {
+        if (Config.logger == null) {
+            // Get logging directory.
+            String fp;
+            var iter = config.getRootDirectory().recursiveGet("dir.log")
+                    .iterator();
+            if (!iter.hasNext())
+                fp ="system.log";
+            else
+                fp = Path.of(iter.next().path().toString(), "system.log")
+                        .toAbsolutePath().toString();
+
+            try {
+                // File and format.
+                var fh = new FileHandler(fp);
+                fh.setFormatter(new SimpleFormatter());
+                // Get logger with config's name.
+                Config.logger = Logger.getLogger(Config.class.getCanonicalName());
+                Config.logger.addHandler(fh);
+            } catch (IOException e) {
+                Config.logger = Logger.getGlobal();
+            }
+        }
     }
 }

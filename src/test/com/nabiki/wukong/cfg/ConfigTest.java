@@ -102,4 +102,17 @@ public class ConfigTest {
             Assert.fail(e.getMessage());
         }
     }
+
+    @Test
+    public void log() {
+        var logs = config.getRootDirectory().recursiveGet("dir.log");
+
+        Assert.assertEquals("should have 1 element",
+                1, logs.size());
+        Assert.assertFalse("should be directory",
+                logs.iterator().next().isFile());
+
+        // Test logger.
+        config.getLogger().info("This is a junit test.");
+    }
 }

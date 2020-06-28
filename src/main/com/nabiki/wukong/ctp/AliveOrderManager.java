@@ -28,9 +28,13 @@
 
 package com.nabiki.wukong.ctp;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
+import com.nabiki.ctp4j.jni.flag.ThostTeResumeType;
+import com.nabiki.ctp4j.jni.struct.*;
+import com.nabiki.ctp4j.trader.CThostFtdcTraderApi;
+import com.nabiki.ctp4j.trader.CThostFtdcTraderSpi;
+import com.nabiki.wukong.annotation.OutTeam;
+import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.user.AliveOrder;
 
 import java.util.HashMap;
@@ -42,7 +46,7 @@ import java.util.UUID;
  * {@code AliveOrderManager} keeps the status of all alive orders, interacts with
  * JNI interfaces and invoke callback methods to process responses.
  */
-public class AliveOrderManager {
+public class AliveOrderManager extends CThostFtdcTraderSpi {
     private final Map<String, AliveOrder>
             ref2alive = new HashMap<>();    // Detail ref -> alive order
     private final Map<UUID, AliveOrder>
@@ -53,6 +57,42 @@ public class AliveOrderManager {
             ref2order = new HashMap<>();    // Detail ref -> detail rtn order
     private final Map<String, CThostFtdcInputOrderField>
             ref2det = new HashMap<>();      // Detail ref -> detail order
+
+    private final Config config;
+    private final LoginConfig loginCfg;
+    private final CThostFtdcTraderApi traderApi;
+
+    AliveOrderManager(Config cfg) {
+        this.config = cfg;
+        this.loginCfg = this.config.getLoginConfigs().get("trader");
+        this.traderApi = CThostFtdcTraderApi.CreateFtdcTraderApi(
+                this.loginCfg.flowDirectory);
+    }
+
+    private void configTrader() {
+        for (var fa : this.loginCfg.frontAddresses)
+            this.traderApi.RegisterFront(fa);
+        this.traderApi.SubscribePrivateTopic(ThostTeResumeType.THOST_TERT_RESUME);
+        this.traderApi.SubscribePublicTopic(ThostTeResumeType.THOST_TERT_RESUME);
+        this.traderApi.RegisterSpi(this);
+    }
+
+    /**
+     * Initialize connection to remote counter.
+     */
+    @OutTeam
+    void initialize() {
+        configTrader();
+        this.traderApi.Init();
+    }
+
+    /**
+     * Disconnect the trader api and release resources.
+     */
+    @OutTeam
+    void release() {
+        this.traderApi.Release();
+    }
 
     /**
      * Save the mapping from the specified input order to the specified alive order,
@@ -118,6 +158,190 @@ public class AliveOrderManager {
      * @return detail order, or {@code null} if no such ref
      */
     public CThostFtdcInputOrderField getDetailOrder(String detailRef) {
+        // TODO get detail order
         return null;
+    }
+
+    private void doLogin() {
+        // TODO login
+    }
+
+    private void doAuthentication() {
+        // TODO authenticate
+    }
+
+    private void doSettlement() {
+        // TODO confirm settlement
+    }
+
+    private String formatLog(String hint, String orderRef, String errMsg,
+                             int errCode) {
+        String sb = hint + "[" + orderRef + "]" + errMsg +
+                "(" + errCode + ")";
+        return sb;
+    }
+
+    /*
+     Construct a cancel return order from the specified error order.
+     */
+    private CThostFtdcOrderField toCancelRtnOrder(CThostFtdcInputOrderField rtn) {
+        // TODO convert to cancel order
+        return null;
+    }
+
+    /*
+     Callback with the specified return order. The method follows the below steps:
+     1. Save the order status.
+     2. Check the status. If it is a cancel, check if the detail order has been
+        canceled. If the order hasn't been canceled, cancel it.
+     3. If it is a normal return, update order.
+     */
+    private void doRtnOrder(CThostFtdcOrderField rtn) {
+        // TODO do rtn order
+    }
+
+    private void doRtnTrade(CThostFtdcTradeField trade) {
+        // TODO do rtn trade
+    }
+
+    @Override
+    public void OnFrontConnected() {
+        doAuthentication();
+    }
+
+    @Override
+    public void OnFrontDisconnected(int reason) {
+        this.config.getLogger().warning(
+                formatLog("trader disconnected", null, null,
+                        reason));
+    }
+
+    @Override
+    public void OnErrRtnOrderAction(CThostFtdcOrderActionField orderAction,
+                                    CThostFtdcRspInfoField rspInfo) {
+        this.config.getLogger().warning(
+                formatLog("failed action", orderAction.OrderRef,
+                        rspInfo.ErrorMsg, rspInfo.ErrorID));
+    }
+
+    @Override
+    public void OnErrRtnOrderInsert(CThostFtdcInputOrderField inputOrder,
+                                    CThostFtdcRspInfoField rspInfo) {
+        this.config.getLogger().severe(
+                formatLog("failed order insertion", inputOrder.OrderRef,
+                        rspInfo.ErrorMsg, rspInfo.ErrorID));
+        // Failed order results in canceling the order.
+        doRtnOrder(toCancelRtnOrder(inputOrder));
+    }
+
+    @Override
+    public void OnRspAuthenticate(
+            CThostFtdcRspAuthenticateField rspAuthenticateField,
+            CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
+        if (rspInfo.ErrorID == 0)
+            doLogin();
+        else
+            this.config.getLogger().severe(
+                    formatLog("failed authentication", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+    }
+
+    @Override
+    public void OnRspError(CThostFtdcRspInfoField rspInfo, int requestId,
+                           boolean isLast) {
+        this.config.getLogger().severe(
+                formatLog("unknown error", null, rspInfo.ErrorMsg,
+                        rspInfo.ErrorID));
+    }
+
+    @Override
+    public void OnRspOrderAction(CThostFtdcInputOrderActionField inputOrderAction,
+                                 CThostFtdcRspInfoField rspInfo, int requestId,
+                                 boolean isLast) {
+        this.config.getLogger().warning(
+                formatLog("failed action", inputOrderAction.OrderRef,
+                        rspInfo.ErrorMsg, rspInfo.ErrorID));
+    }
+
+    @Override
+    public void OnRspOrderInsert(CThostFtdcInputOrderField inputOrder,
+                                 CThostFtdcRspInfoField rspInfo, int requestId,
+                                 boolean isLast) {
+        this.config.getLogger().severe(
+                formatLog("failed order insertion", inputOrder.OrderRef,
+                        rspInfo.ErrorMsg, rspInfo.ErrorID));
+        // Failed order results in canceling the order.
+        doRtnOrder(toCancelRtnOrder(inputOrder));
+    }
+
+    @Override
+    public void OnRspQryInstrument(CThostFtdcInstrumentField instrument,
+                                   CThostFtdcRspInfoField rspInfo, int requestId,
+                                   boolean isLast) {
+        // TODO rsp qry
+    }
+
+    @Override
+    public void OnRspQryInstrumentCommissionRate(
+            CThostFtdcInstrumentCommissionRateField instrumentCommissionRate,
+            CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
+        // TODO rsp qry
+    }
+
+    @Override
+    public void OnRspQryInstrumentMarginRate(
+            CThostFtdcInstrumentMarginRateField instrumentMarginRate,
+            CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
+        // TODO rsp qry
+    }
+
+    @Override
+    public void OnRspSettlementInfoConfirm(
+            CThostFtdcSettlementInfoConfirmField settlementInfoConfirm,
+            CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
+        if (rspInfo.ErrorID == 0)
+            this.config.getLogger().fine(
+                    formatLog("successful login", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+        else
+            this.config.getLogger().severe(
+                    formatLog("failed settlement confirm", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+    }
+
+    @Override
+    public void OnRspUserLogin(CThostFtdcRspUserLoginField rspUserLogin,
+                               CThostFtdcRspInfoField rspInfo, int requestId,
+                               boolean isLast) {
+        if (rspInfo.ErrorID == 0)
+            doSettlement();
+        else
+            this.config.getLogger().severe(
+                    formatLog("failed login", null, rspInfo.ErrorMsg,
+                            rspInfo.ErrorID));
+    }
+
+    @Override
+    public void OnRspUserLogout(CThostFtdcUserLogoutField userLogout,
+                                CThostFtdcRspInfoField rspInfo, int requestId,
+                                boolean isLast) {
+        if (rspInfo.ErrorID == 0)
+            this.config.getLogger().fine(
+                    formatLog("successful logout", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+        else
+            this.config.getLogger().warning(
+                    formatLog("failed logout", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+    }
+
+    @Override
+    public void OnRtnOrder(CThostFtdcOrderField order) {
+        doRtnOrder(order);
+    }
+
+    @Override
+    public void OnRtnTrade(CThostFtdcTradeField trade) {
+        doRtnTrade(trade);
     }
 }
