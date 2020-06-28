@@ -33,20 +33,13 @@ import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorCode;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcOrderStatusType;
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.wukong.OP;
-import com.nabiki.wukong.Transactional;
+import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.ctp.ActiveOrderManager;
 
 import java.util.*;
 
 public class ActiveOrder {
-
-    static class TransFrozenPD extends Transactional<FrozenPositionDetail> {
-        protected TransFrozenPD(FrozenPositionDetail origin) {
-            super(origin);
-        }
-    }
-
     private FrozenCash frozenCash;
     private Map<String, FrozenPositionDetail> frozenPD;
 
@@ -149,7 +142,16 @@ public class ActiveOrder {
     }
 
     private CThostFtdcInputOrderField toCloseOrder(FrozenPositionDetail pd) {
-        return null;
+        var cls = OP.deepCopy(getOriginOrder());
+        cls.VolumeTotalOriginal = (int)pd.getFrozenShareCount();
+        if (pd.getFrozenShare().TradingDay.compareTo(this.config.getTradingDay()) != 0) {
+            // Yesterday.
+            cls.CombOffsetFlag = TThostFtdcCombOffsetFlagType.OFFSET_CLOSE_YESTERDAY;
+        } else {
+            // Today.
+            cls.CombOffsetFlag = TThostFtdcCombOffsetFlagType.OFFSET_CLOSE_TODAY;
+        }
+        return cls;
     }
 
     public void updateRtnOrder(CThostFtdcOrderField rtn) {
@@ -186,16 +188,21 @@ public class ActiveOrder {
         }
     }
 
-    // For cash, just update commission.
-    // For position, update both frozen position and user position.
-    // When query account, calculate the fields from yesterday's settlement and user
-    // position.
+    /**
+     * Update position and cash when trade happens. For cash, just update commission.
+     * For position, update both frozen position and user position.
+     *
+     * <p>When query account, calculate the fields from yesterday's settlement and
+     * current position.
+     * </p>
+     *
+     * @param trade trade response
+     */
+    @InTeam
     public void updateTrade(CThostFtdcTradeField trade) {
         if (trade == null)
             throw new NullPointerException("return trade null");
         var commissionShare = toCommissionShare(trade);
-        if (commissionShare == null)
-            throw new NullPointerException("commission share null");
         var volume = trade.Volume;
         if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
             // Open.
@@ -205,13 +212,10 @@ public class ActiveOrder {
                                 trade.OrderRef, null, 0));
                 return;
             }
-            var share = toCashShare(trade);
-            if (share == null)
-                throw new NullPointerException("cash share null");
             // Update frozen cash, user cash and user position.
-            this.frozenCash.openShare(share, volume);
-            this.userCash.tradeShare(commissionShare, volume);
+            this.frozenCash.openShare(volume);
             this.userPos.getUserPD(trade.InstrumentID).add(toUserPosition(trade));
+            this.userCash.addShareCommission(commissionShare, volume);
         } else {
             // Close.
             if (this.frozenPD == null || this.frozenPD.size() == 0) {
@@ -231,9 +235,16 @@ public class ActiveOrder {
                                 trade.OrderRef, null, 0));
                 return;
             }
+            if(p.getFrozenShareCount() < trade.Volume) {
+                this.config.getLogger().severe(
+                        OP.formatLog("not enough frozen position",
+                                trade.OrderRef, null, 0));
+                return;
+            }
+            // Check the frozen position OK, here won't throw exception.
             p.closeShare(trade.Volume);
             p.getParent().closeShare(share, trade.Volume);
-            this.userCash.tradeShare(commissionShare, trade.Volume);
+            this.userCash.addShareCommission(commissionShare, trade.Volume);
         }
     }
 
@@ -246,12 +257,45 @@ public class ActiveOrder {
         return null;
     }
 
-    private CThostFtdcTradingAccountField toCashShare(CThostFtdcTradeField trade) {
-        return null;
-    }
-
     // Only commission.
-    private CThostFtdcTradingAccountField toCommissionShare(CThostFtdcTradeField trade) {
-        return null;
+    private CThostFtdcTradingAccountField toCommissionShare(
+            CThostFtdcTradeField trade) {
+        var r = new CThostFtdcTradingAccountField();
+        r.Commission = 0;
+        var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
+        try {
+            double commission = 0.0D;
+            var comm = instrInfo.commission;
+            var instr = instrInfo.instrument;
+            if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
+                if (comm.OpenRatioByMoney > 0)
+                    commission = comm.OpenRatioByMoney * instr.VolumeMultiple
+                            * trade.Price * trade.Volume;
+                else
+                    commission = comm.OpenRatioByVolume * trade.Volume;
+            } else {
+                if (trade.OffsetFlag ==
+                        TThostFtdcCombOffsetFlagType.OFFSET_CLOSE_TODAY) {
+                    if (comm.CloseRatioByMoney > 0)
+                        commission = comm.CloseTodayRatioByMoney
+                                * instr.VolumeMultiple * trade.Price * trade.Volume;
+                    else
+                        commission = comm.CloseTodayRatioByVolume * trade.Volume;
+                } else {
+                    // close = close yesterday
+                    if (comm.CloseRatioByMoney > 0)
+                        commission = comm.CloseRatioByMoney
+                                * instr.VolumeMultiple * trade.Price * trade.Volume;
+                    else
+                        commission = comm.CloseRatioByVolume * trade.Volume;
+                }
+            }
+            r.Commission = commission;
+        } catch (NullPointerException e) {
+            this.config.getLogger().warning(
+                    OP.formatLog("failed compute commission", trade.OrderRef,
+                            null, 0));
+        }
+        return r;
     }
 }

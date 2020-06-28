@@ -31,32 +31,37 @@ package com.nabiki.wukong.user;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 
 class FrozenCash {
-    private final CThostFtdcTradingAccountField cash;
+    private final CThostFtdcTradingAccountField frozenShare;
+    private final long totalShareCount;
+
     private AssetState state = AssetState.ONGOING;
+    private long tradedShareCount = 0;
 
-    FrozenCash(CThostFtdcTradingAccountField cash) {
-        this.cash = cash;
+    FrozenCash(CThostFtdcTradingAccountField share, long shareCount) {
+        this.frozenShare = share;
+        this.totalShareCount = shareCount;
     }
 
-    double getFrozenMargin() {
+    double getFrozenShareCount() {
         if (this.state == AssetState.CANCELED)
             return 0;
         else
-            return this.cash.FrozenMargin;
+            return this.totalShareCount - this.tradedShareCount;
     }
 
-    double getFrozenCommission() {
-        if (this.state == AssetState.CANCELED)
-            return 0;
-        else
-            return this.cash.FrozenCommission;
+    CThostFtdcTradingAccountField getFrozenShare() {
+        return this.frozenShare;
     }
 
     void cancel() {
         this.state = AssetState.CANCELED;
     }
-    void openShare(CThostFtdcTradingAccountField share, long tradeCnt) {
-        this.cash.FrozenCommission -= share.FrozenCommission * tradeCnt;
-        this.cash.FrozenMargin -= share.FrozenMargin * tradeCnt;
+
+    void openShare(long tradeCnt) {
+        if (tradeCnt < 0)
+            throw new IllegalArgumentException("negative traded share count");
+        if (getFrozenShareCount() < tradeCnt)
+            throw new IllegalStateException("not enough frozen shares");
+        this.tradedShareCount -= tradeCnt;
     }
 }

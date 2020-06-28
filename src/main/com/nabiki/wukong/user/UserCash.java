@@ -37,7 +37,7 @@ public class UserCash {
         this.total = total;
     }
 
-    void tradeShare(CThostFtdcTradingAccountField share, long tradeCnt) {
+    void addShareCommission(CThostFtdcTradingAccountField share, long tradeCnt) {
         this.total.Commission += share.Commission * tradeCnt;
     }
 }
