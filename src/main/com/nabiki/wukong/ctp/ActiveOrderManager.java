@@ -302,7 +302,14 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         rtn.UserID = active.getOriginOrder().UserID;
         rtn.InvestorID = active.getOriginOrder().InvestorID;
         rtn.AccountID = active.getOriginOrder().AccountID;
-        active.updateRtnOrder(rtn);
+
+        try {
+            active.updateRtnOrder(rtn);
+        } catch (Throwable th) {
+            this.config.getLogger().severe(
+                    OP.formatLog("failed update rtn order", rtn.OrderRef,
+                            th.getMessage(), 0));
+        }
     }
 
     private void doRtnTrade(CThostFtdcTradeField trade) {
@@ -317,7 +324,14 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         trade.BrokerID = active.getOriginOrder().BrokerID;
         trade.UserID = active.getOriginOrder().UserID;
         trade.InvestorID = active.getOriginOrder().InvestorID;
-        active.updateTrade(trade);
+
+        try {
+            active.updateTrade(trade);
+        } catch (Throwable th) {
+            this.config.getLogger().severe(
+                    OP.formatLog("failed update rtn trade", trade.OrderRef,
+                            th.getMessage(), 0));
+        }
     }
 
     private void doQueryInstr() {

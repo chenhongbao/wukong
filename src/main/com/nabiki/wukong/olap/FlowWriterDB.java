@@ -113,7 +113,11 @@ public class FlowWriterDB {
                             OP.formatLog("failed SQL execution",
                                     null, e.getMessage(),
                                     e.getErrorCode()));
-                } finally {
+                } catch (Throwable th) {
+                    config.getLogger().warning(
+                            OP.formatLog("null pointer", null,
+                                    th.getMessage(), 0));
+                }finally {
                     lck.unlock();
                 }
             }

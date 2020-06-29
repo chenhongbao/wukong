@@ -120,7 +120,7 @@ public class ActiveOrder {
         }
     }
 
-    String findRef(Set<String> oldSet, Set<String> newSet) {
+    private String findRef(Set<String> oldSet, Set<String> newSet) {
         if (oldSet.size() >= newSet.size())
             throw new IllegalStateException(
                     "old set has more elements than new set");
@@ -133,6 +133,7 @@ public class ActiveOrder {
         return null;
     }
 
+    @InTeam
     public UUID getOrderUUID() {
         return this.uuid;
     }
