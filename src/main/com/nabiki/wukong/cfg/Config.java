@@ -32,6 +32,7 @@ import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.EasyFile;
 import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.cfg.plain.InstrumentInfo;
+import com.nabiki.wukong.cfg.plain.JdbcLoginConfig;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 
 import java.util.HashMap;
@@ -58,6 +59,7 @@ public class Config {
     static Logger logger;
     String tradingDay;
     EasyFile rootDirectory;
+    JdbcLoginConfig jdbcLoginConfig;
 
     Config() {
     }
@@ -157,5 +159,14 @@ public class Config {
         synchronized (this.depths) {
             return this.depths.get(instr);
         }
+    }
+
+    /**
+     * Get JDBC database login configuration.
+     *
+     * @return {@link JdbcLoginConfig} if presented, {@code null} otherwise
+     */
+    public JdbcLoginConfig getJdbcLoginConfig() {
+        return this.jdbcLoginConfig;
     }
 }

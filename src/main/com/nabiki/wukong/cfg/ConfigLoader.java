@@ -35,9 +35,12 @@ import com.nabiki.wukong.EasyFile;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.cfg.plain.InstrumentInfo;
+import com.nabiki.wukong.cfg.plain.JdbcLoginConfig;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.cfg.plain.TradingHourConfig;
 
+import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -67,11 +70,13 @@ public class ConfigLoader {
             // Clear old config.
             if (configLoaded.get())
                 clearConfig();
-
+            // First create dirs, then logger.
             setDirectories();
-            setLoginConfig();
-            setTradingHourConfig();
             setConfigLogger();
+            // Config below uses logger to keep error info.
+            setLoginConfig();
+            setJdbcLoginConfig();
+            setTradingHourConfig();
             setInstrConfig();
         }
         return config;
@@ -131,7 +136,10 @@ public class ConfigLoader {
                                 OP.readText(file, StandardCharsets.UTF_8),
                                 CThostFtdcInstrumentMarginRateField.class));
                     }
-                } catch (IOException ignored) {
+                } catch (IOException e) {
+                    config.getLogger().warning(
+                            OP.formatLog("failed instr config", null,
+                                    e.getMessage(), 0));
                 }
                 return false;
             });
@@ -148,73 +156,81 @@ public class ConfigLoader {
 
     private static void setTradingHourConfig() throws IOException {
         var s = config.getRootDirectory().recursiveGet("dir.cfg.hour");
-        if (s.size() != 1)
+        if (s.size() == 0)
             throw new IOException("directory for trading hour configs not found");
-
-        var cfg = s.iterator().next();
-        cfg.file().listFiles(file -> {
-            try {
-                if (!file.isFile() || file.length() == 0)
-                    return false;
-                var c = OP.fromJson(
-                        OP.readText(file, StandardCharsets.UTF_8),
-                        TradingHourConfig.class);
-                // Not null.
-                Objects.requireNonNull(c);
-                Objects.requireNonNull(c.tradingHour);
-                Objects.requireNonNull(c.productID);
-                // Empty config.
-                if (c.tradingHour.size() == 0 || c.productID.size() == 0)
-                    return false;
-                // Prepare parameters to construct keeper.
-                var index = 0;
-                var hours = new TradingHourKeeper
-                        .TradingHour[c.tradingHour.size()];
-                for (var hour : c.tradingHour)
-                    hours[index++] = new TradingHourKeeper
-                            .TradingHour(hour.from, hour.to);
-                var h = new TradingHourKeeper(hours);
-                // Save mapping into config.
-                for (var p : c.productID)
-                    config.tradingHour.put(p, h);
-            } catch (IOException | NullPointerException ignored) {
-            }
-            return false;
-        });
+        // Iterate over all dirs.
+       for (var cfg : s) {
+            cfg.file().listFiles(file -> {
+                try {
+                    if (!file.isFile() || file.length() == 0)
+                        return false;
+                    var c = OP.fromJson(
+                            OP.readText(file, StandardCharsets.UTF_8),
+                            TradingHourConfig.class);
+                    // Not null.
+                    Objects.requireNonNull(c);
+                    Objects.requireNonNull(c.tradingHour);
+                    Objects.requireNonNull(c.productID);
+                    // Empty config.
+                    if (c.tradingHour.size() == 0 || c.productID.size() == 0)
+                        return false;
+                    // Prepare parameters to construct keeper.
+                    var index = 0;
+                    var hours = new TradingHourKeeper
+                            .TradingHour[c.tradingHour.size()];
+                    for (var hour : c.tradingHour)
+                        hours[index++] = new TradingHourKeeper
+                                .TradingHour(hour.from, hour.to);
+                    var h = new TradingHourKeeper(hours);
+                    // Save mapping into config.
+                    for (var p : c.productID)
+                        config.tradingHour.put(p, h);
+                } catch (IOException | NullPointerException e) {
+                    config.getLogger().warning(
+                            OP.formatLog("failed trading hour config",
+                                    null, e.getMessage(), 0));
+                }
+                return false;
+            });
+        }
         // Write sample config.
         if (config.tradingHour.size() == 0) {
+            var cfg = s.iterator().next();
             cfg.setFile("cfg.hour.sample", "hour.sample.json");
             OP.writeText(OP.toJson(new LoginConfig()),
-                    cfg.get("cfg.hour.sample").file(),
-                    StandardCharsets.UTF_8,
+                    cfg.get("cfg.hour.sample").file(), StandardCharsets.UTF_8,
                     false);
         }
     }
 
     private static void setLoginConfig() throws IOException {
         var s = config.getRootDirectory().recursiveGet("dir.cfg.login");
-        if (s.size() != 1)
+        if (s.size() == 0)
             throw new IOException("directory for login configs not found");
         // Iterate over all files under dir.
-        var cfg = s.iterator().next();
-        cfg.file().listFiles(file -> {
-            try {
-                if (!file.isFile() || file.length() == 0)
-                    return false;
-                var c = OP.fromJson(
-                        OP.readText(file, StandardCharsets.UTF_8),
-                        LoginConfig.class);
-                config.login.put(c.name, c);
-            } catch (IOException ignored) {
-            }
-            return false;
-        });
+        for (var cfg : s) {
+            cfg.file().listFiles(file -> {
+                try {
+                    if (!file.isFile() || file.length() == 0)
+                        return false;
+                    var c = OP.fromJson(
+                            OP.readText(file, StandardCharsets.UTF_8),
+                            LoginConfig.class);
+                    config.login.put(c.name, c);
+                } catch (IOException e) {
+                    config.getLogger().warning(
+                            OP.formatLog("failed login config",
+                                    null, e.getMessage(), 0));
+                }
+                return false;
+            });
+        }
         // Write a configuration sample.
         if (config.login.size() == 0) {
+            var cfg = s.iterator().next();
             cfg.setFile("cfg.login.sample", "login.sample.json");
             OP.writeText(OP.toJson(new LoginConfig()),
-                    cfg.get("cfg.login.sample").file(),
-                    StandardCharsets.UTF_8,
+                    cfg.get("cfg.login.sample").file(), StandardCharsets.UTF_8,
                     false);
         }
     }
@@ -231,6 +247,7 @@ public class ConfigLoader {
         var cfg = root.get("dir.cfg");
         cfg.setDirectory("dir.cfg.login", ".login");
         cfg.setDirectory("dir.cfg.hour", ".hour");
+        cfg.setDirectory("dir.cfg.jdbc", ".jdbc");
 
         var flow = root.get("dir.flow");
         flow.setDirectory("dir.flow.ctp", ".ctp");
@@ -269,6 +286,38 @@ public class ConfigLoader {
             } catch (IOException e) {
                 Config.logger = Logger.getGlobal();
             }
+        }
+    }
+
+    private static void setJdbcLoginConfig() throws IOException {
+        var s = config.getRootDirectory().recursiveGet("dir.cfg.jdbc");
+        if (s.size() == 0)
+            throw new IOException("jdbc config not found");
+        // Just use the first file in first dir.
+        s.iterator().next().file().listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File file) {
+                try {
+                    if (config.jdbcLoginConfig == null
+                            && file.getName().endsWith(".json"))
+                        config.jdbcLoginConfig = OP.fromJson(
+                                OP.readText(file, StandardCharsets.UTF_8),
+                                JdbcLoginConfig.class);
+                } catch (IOException e) {
+                    config.getLogger().warning(
+                            OP.formatLog("failed jdbc login config",
+                                    null, e.getMessage(), 0));
+                }
+                return false;
+            }
+        });
+        // Write an sample config if not exists.
+        if (config.jdbcLoginConfig == null) {
+            var cfg = s.iterator().next();
+            cfg.setFile("cfg.jdbc.sample", "jdbc.sample.json");
+            OP.writeText(OP.toJson(new JdbcLoginConfig()),
+                    cfg.get("cfg.jdbc.sample").file(), StandardCharsets.UTF_8,
+                    false);
         }
     }
 }
