@@ -33,10 +33,7 @@ import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.cfg.Config;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -132,6 +129,7 @@ public class FlowWriterDB {
                 this.jdbc.close();
             }
             openConnection();
+            checkSchema();
             checkTables();
             prepareStatements();
         }
@@ -140,6 +138,9 @@ public class FlowWriterDB {
             var cfg = config.getJdbcLoginConfig();
             if (cfg == null)
                 throw new NullPointerException("jdbc config null");
+            if (cfg.user == null || cfg.password == null || cfg.URL == null
+                    || cfg.schema == null)
+                throw new NullPointerException("broken jdbc config");
             this.jdbc = DriverManager.getConnection(cfg.URL, cfg.user,
                     cfg.password);
         }
@@ -170,20 +171,37 @@ public class FlowWriterDB {
             }
         }
 
+        private void checkSchema() throws SQLException {
+            try (Statement stmt = this.jdbc.createStatement()) {
+                var rs = stmt.executeQuery("SHOW DATABASES");
+                var dbs = new HashSet<String>();
+                while (rs.next())
+                    dbs.add(rs.getString(1).toLowerCase());
+                rs.close();
+                var schema = config.getJdbcLoginConfig().schema;
+                if (!dbs.contains(schema))
+                    stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS " +
+                            "`" + schema + "` " +
+                            "DEFAULT CHARACTER SET UTF8MB4");
+            }
+        }
+
         private void checkTables() throws SQLException {
-            var stmt = this.jdbc.createStatement();
-            stmt.execute("USE " + config.getJdbcLoginConfig().schema);
-            stmt.execute("SET NAMES UTF8MB4");
-            // Check tables.
-            var tables = new HashSet<String>();
-            var rs = stmt.executeQuery("SHOW TABLES");
-            while (rs.next())
-                tables.add(rs.getString(1).toLowerCase());
-            // Create tables if they don't exist.
-            if (!tables.contains("cthost_ftdc_order_field"))
-                stmt.executeUpdate(WriteDB.createOrderTableSql);
-            if (!tables.contains("cthost_ftdc_trade_field"))
-                stmt.executeUpdate(WriteDB.createTradeTableSql);
+            try (Statement stmt = this.jdbc.createStatement()) {
+                stmt.execute("USE " + config.getJdbcLoginConfig().schema);
+                stmt.execute("SET NAMES UTF8MB4");
+                // Check tables.
+                var tables = new HashSet<String>();
+                var rs = stmt.executeQuery("SHOW TABLES");
+                while (rs.next())
+                    tables.add(rs.getString(1).toLowerCase());
+                rs.close();
+                // Create tables if they don't exist.
+                if (!tables.contains("cthost_ftdc_order_field"))
+                    stmt.executeUpdate(WriteDB.createOrderTableSql);
+                if (!tables.contains("cthost_ftdc_trade_field"))
+                    stmt.executeUpdate(WriteDB.createTradeTableSql);
+            }
         }
 
         private void execSQL(CThostFtdcOrderField order) {
