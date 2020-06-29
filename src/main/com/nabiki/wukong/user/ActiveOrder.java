@@ -93,12 +93,12 @@ public class ActiveOrder {
         if (this.order == null || this.config == null)
             throw new NullPointerException("parameter null");
         if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
-            this.frozenCash = getFrozenCash(this.order);
+            this.frozenCash = getOpenFrozen(this.order);
             if (this.frozenCash == null)
                 return TThostFtdcErrorCode.INSUFFICIENT_MONEY;
             return this.orderMgr.sendDetailOrder(this.order, this);
         } else {
-            var pds = getFrozenPD(this.order);
+            var pds = getCloseFrozen(this.order);
             if (pds == null || pds.size() == 0)
                 return TThostFtdcErrorCode.OVER_CLOSE_POSITION;
             Set<String> refs = new HashSet<>();
@@ -138,18 +138,105 @@ public class ActiveOrder {
         return this.uuid;
     }
 
-    private FrozenCash getFrozenCash(CThostFtdcInputOrderField order) {
-        return null;
+    private FrozenCash getOpenFrozen(CThostFtdcInputOrderField order) {
+        var instrInfo = this.config.getInstrInfo(order.InstrumentID);
+        var comm = instrInfo.commission;
+        var margin = instrInfo.margin;
+        var instr = instrInfo.instrument;
+        Objects.requireNonNull(instrInfo, "instr info null");
+        Objects.requireNonNull(instr, "instrument null");
+        Objects.requireNonNull(margin, "margin null");
+        Objects.requireNonNull(comm, "commission null");
+        // Calculate commission, cash.
+        var c = new CThostFtdcTradingAccountField();
+        if (order.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
+            if (margin.LongMarginRatioByMoney > 0)
+                c.FrozenCash = order.LimitPrice * instr.VolumeMultiple
+                        * margin.LongMarginRatioByMoney;
+            else
+                c.FrozenCash = margin.LongMarginRatioByVolume;
+        } else {
+            if (margin.ShortMarginRatioByMoney > 0)
+                c.FrozenCash = order.LimitPrice * instr.VolumeMultiple
+                        * margin.ShortMarginRatioByMoney;
+            else
+                c.FrozenCash = margin.ShortMarginRatioByVolume;
+        }
+        if (comm.OpenRatioByMoney > 0)
+            c.FrozenCommission = order.LimitPrice * instr.VolumeMultiple
+                    * comm.OpenRatioByMoney;
+        else
+            c.FrozenCommission = comm.OpenRatioByVolume;
+        return new FrozenCash(c, order.VolumeTotalOriginal);
     }
 
-    private List<FrozenPositionDetail> getFrozenPD(CThostFtdcInputOrderField order) {
-        return null;
+    private List<FrozenPositionDetail> getCloseFrozen(
+            CThostFtdcInputOrderField order) {
+        // Get position details.
+        var avail = this.userPos.getUserPD(order.InstrumentID);
+        Objects.requireNonNull(avail, "user position null");
+        // Get instr info.
+        var instrInfo = this.config.getInstrInfo(order.InstrumentID);
+        var comm = instrInfo.commission;
+        var instr = instrInfo.instrument;
+        Objects.requireNonNull(instrInfo, "instr info null");
+        Objects.requireNonNull(instr, "instrument null");
+        Objects.requireNonNull(comm, "commission null");
+        // Trading day not null.
+        Objects.requireNonNull(this.config.getTradingDay(),
+                "trading day null");
+        // Calculate frozen position detail.
+        int volume = order.VolumeTotalOriginal;
+        var r = new LinkedList<FrozenPositionDetail>();
+        for (var a : avail) {
+            long vol = Math.min(a.getAvailableVolume(), volume);
+            // Calculate shares.
+            var sharePos = a.getDeepCopyTotal();
+            sharePos.ExchMargin /= 1.0D * sharePos.Volume;
+            sharePos.Margin /= 1.0D * sharePos.Volume;
+            sharePos.CloseVolume = 1;
+            sharePos.CloseAmount = order.LimitPrice * instr.VolumeMultiple;
+            if (sharePos.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
+                // Long position.
+                sharePos.CloseProfitByDate = instr.VolumeMultiple *
+                        (order.LimitPrice - sharePos.LastSettlementPrice);
+                sharePos.CloseProfitByTrade = instr.VolumeMultiple *
+                        (order.LimitPrice - sharePos.OpenPrice);
+            } else {
+                // Short position.
+                sharePos.CloseProfitByDate = instr.VolumeMultiple *
+                        (sharePos.LastSettlementPrice - order.LimitPrice);
+                sharePos.CloseProfitByTrade = instr.VolumeMultiple *
+                        (sharePos.OpenPrice - order.LimitPrice);
+            }
+            var shareCash = new CThostFtdcTradingAccountField();
+            if (sharePos.TradingDay.compareTo(this.config.getTradingDay()) == 0) {
+                // Today position.
+                if (comm.CloseTodayRatioByMoney > 0)
+                    shareCash.FrozenCommission = order.LimitPrice
+                            * instr.VolumeMultiple * comm.CloseTodayRatioByMoney;
+                else
+                    shareCash.FrozenCommission = comm.CloseTodayRatioByVolume;
+            } else {
+                // YD position.
+                if (comm.CloseRatioByMoney > 0)
+                    shareCash.FrozenCommission = order.LimitPrice
+                            * instr.VolumeMultiple * comm.CloseRatioByMoney;
+                else
+                    shareCash.FrozenCommission = comm.CloseRatioByVolume;
+            }
+            r.add(new FrozenPositionDetail(a, sharePos, shareCash, vol));
+            if ((volume -= vol) <= 0)
+                break;
+        }
+        return r;
     }
 
     private CThostFtdcInputOrderField toCloseOrder(FrozenPositionDetail pd) {
         var cls = OP.deepCopy(getOriginOrder());
         cls.VolumeTotalOriginal = (int) pd.getFrozenShareCount();
-        if (pd.getFrozenShare().TradingDay.compareTo(this.config.getTradingDay()) != 0) {
+        if (pd.getFrozenSharePD().TradingDay
+                .compareTo(this.config.getTradingDay()) != 0) {
             // Yesterday.
             cls.CombOffsetFlag = TThostFtdcCombOffsetFlagType.OFFSET_CLOSE_YESTERDAY;
         } else {
@@ -249,7 +336,7 @@ public class ActiveOrder {
                                 trade.OrderRef, null, 0));
                 return;
             }
-            var share = toPositionShare(p.getFrozenShare(), trade);
+            var share = toPositionShare(p.getFrozenSharePD(), trade);
             // Check the frozen position OK, here won't throw exception.
             p.closeShare(trade.Volume);
             p.getParent().closeShare(share, trade.Volume);
@@ -299,24 +386,28 @@ public class ActiveOrder {
         d.InvestUnitID = trade.InvestUnitID;
         d.SettlementID = trade.SettlementID;
         // Calculate margin.
-        var instr = this.config.getInstrInfo(trade.InstrumentID);
-        if (instr == null || instr.instrument == null || instr.margin == null)
-            throw new NullPointerException(
-                    "instr(" + trade.InstrumentID + ") info null");
+        var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
+        var instr = instrInfo.instrument;
+        var margin = instrInfo.margin;
+        var comm = instrInfo.commission;
+        Objects.requireNonNull(instrInfo, "instr info null");
+        Objects.requireNonNull(instr, "instrument null");
+        Objects.requireNonNull(margin, "margin null");
+        Objects.requireNonNull(comm, "commission null");
         // Decide margin rates.
         if (d.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
-            d.MarginRateByMoney = instr.margin.LongMarginRatioByMoney;
-            d.MarginRateByVolume = instr.margin.LongMarginRatioByVolume;
+            d.MarginRateByMoney = margin.LongMarginRatioByMoney;
+            d.MarginRateByVolume = margin.LongMarginRatioByVolume;
         } else {
-            d.MarginRateByMoney = instr.margin.ShortMarginRatioByMoney;
-            d.MarginRateByVolume = instr.margin.ShortMarginRatioByVolume;
+            d.MarginRateByMoney = margin.ShortMarginRatioByMoney;
+            d.MarginRateByVolume = margin.ShortMarginRatioByVolume;
         }
         // Calculate margin.
         var depth = this.config.getDepthMarketData(trade.InstrumentID);
         if (depth != null) {
             d.LastSettlementPrice = depth.PreSettlementPrice;
             if (d.MarginRateByMoney > 0)
-                d.Margin = d.Volume * instr.instrument.VolumeMultiple
+                d.Margin = d.Volume * instr.VolumeMultiple
                         * d.LastSettlementPrice * d.MarginRateByMoney;
             else
                 d.Margin = d.Volume * d.MarginRateByVolume;

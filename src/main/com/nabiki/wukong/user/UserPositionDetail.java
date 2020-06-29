@@ -35,6 +35,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class UserPositionDetail {
+
     private final CThostFtdcInvestorPositionDetailField total;
     private final List<FrozenPositionDetail> frozenPD = new LinkedList<>();
 
@@ -64,6 +65,6 @@ public class UserPositionDetail {
     }
 
     void setFrozenPD(FrozenPositionDetail frzPD) {
-        // TODO set frozen pd
+        this.frozenPD.add(frzPD);
     }
 }

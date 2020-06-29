@@ -29,6 +29,7 @@
 package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
+import com.nabiki.wukong.OP;
 
 public class UserCash {
     private final CThostFtdcTradingAccountField total;
@@ -39,5 +40,9 @@ public class UserCash {
 
     void addShareCommission(CThostFtdcTradingAccountField share, long tradeCnt) {
         this.total.Commission += share.Commission * tradeCnt;
+    }
+
+    CThostFtdcTradingAccountField getTotalCash() {
+        return OP.deepCopy(this.total);
     }
 }

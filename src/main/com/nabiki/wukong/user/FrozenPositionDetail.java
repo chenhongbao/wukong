@@ -29,16 +29,18 @@
 package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
+import com.nabiki.wukong.OP;
 
 public class FrozenPositionDetail {
     // The original position that own this frozen position.
     private final UserPositionDetail parent;
-
+    private final CThostFtdcTradingAccountField frozenShareCash;
     // The share is asset change for each share before real trade happens.
     // When trade returns, use the return trade to generate another share info
     // to update the position.
     // This share info is used to calculate frozen margin or commission.
-    private final CThostFtdcInvestorPositionDetailField frozenShare;
+    private final CThostFtdcInvestorPositionDetailField frozenSharePD;
 
     private final long totalShareCount;
     private AssetState state = AssetState.ONGOING;
@@ -46,9 +48,11 @@ public class FrozenPositionDetail {
 
     FrozenPositionDetail(UserPositionDetail parent,
                          CThostFtdcInvestorPositionDetailField frzShare,
+                         CThostFtdcTradingAccountField frzCash,
                          long totalShareCount) {
         this.parent = parent;
-        this.frozenShare = frzShare;
+        this.frozenSharePD = frzShare;
+        this.frozenShareCash = frzCash;
         this.totalShareCount = totalShareCount;
     }
 
@@ -75,7 +79,11 @@ public class FrozenPositionDetail {
         return this.parent;
     }
 
-    CThostFtdcInvestorPositionDetailField getFrozenShare() {
-        return this.frozenShare;
+    CThostFtdcInvestorPositionDetailField getFrozenSharePD() {
+        return OP.deepCopy(this.frozenSharePD);
+    }
+
+    CThostFtdcTradingAccountField getFrozenShareCash() {
+        return OP.deepCopy(this.frozenShareCash);
     }
 }
