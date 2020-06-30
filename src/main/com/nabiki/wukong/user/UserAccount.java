@@ -51,6 +51,11 @@ public class UserAccount {
         this.total.Commission += share.Commission * tradeCnt;
     }
 
+    void cancel() {
+        for (var acc : this.frozenAcc)
+            acc.cancel();
+    }
+
     double getFrozenCash() {
         double frz = 0.0D;
         for (var c : this.frozenAcc)

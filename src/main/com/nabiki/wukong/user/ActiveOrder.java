@@ -96,9 +96,11 @@ public class ActiveOrder {
             this.frozenAccount = getOpenFrozen(this.order);
             if (this.frozenAccount == null)
                 return TThostFtdcErrorCode.INSUFFICIENT_MONEY;
-            // Apply frozen cash to parent cash.
-            this.userAccount.addFrozenAccount(this.frozenAccount);
-            return this.orderMgr.sendDetailOrder(this.order, this);
+            var r = this.orderMgr.sendDetailOrder(this.order, this);
+            if (r == 0)
+                // Apply frozen account to parent account.
+                this.userAccount.addFrozenAccount(this.frozenAccount);
+            return r;
         } else {
             var pds = getCloseFrozen(this.order);
             if (pds == null || pds.size() == 0)
@@ -115,11 +117,11 @@ public class ActiveOrder {
                 this.frozenPD.put(ref, p);
                 // Update used ref.
                 refs.add(ref);
-                if (x != 0)
-                    ret = x;
-                else
+                if (x == 0)
                     // Apply frozen position to parent position.
                     p.getParent().addFrozenPD(p);
+                else
+                    ret = x;
             }
             return ret;
         }
