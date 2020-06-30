@@ -194,7 +194,7 @@ public class OP {
      * @return log string
      */
     public static String formatLog(String hint, String orderRef, String errMsg,
-                             int errCode) {
+                             Integer errCode) {
         return String.format("%s[%s]%s(%d)", hint, orderRef, errMsg, errCode);
     }
 }

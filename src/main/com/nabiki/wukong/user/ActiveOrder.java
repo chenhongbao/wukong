@@ -140,10 +140,10 @@ public class ActiveOrder {
 
     private FrozenCash getOpenFrozen(CThostFtdcInputOrderField order) {
         var instrInfo = this.config.getInstrInfo(order.InstrumentID);
+        Objects.requireNonNull(instrInfo, "instr info null");
         var comm = instrInfo.commission;
         var margin = instrInfo.margin;
         var instr = instrInfo.instrument;
-        Objects.requireNonNull(instrInfo, "instr info null");
         Objects.requireNonNull(instr, "instrument null");
         Objects.requireNonNull(margin, "margin null");
         Objects.requireNonNull(comm, "commission null");
@@ -177,9 +177,9 @@ public class ActiveOrder {
         Objects.requireNonNull(avail, "user position null");
         // Get instr info.
         var instrInfo = this.config.getInstrInfo(order.InstrumentID);
+        Objects.requireNonNull(instrInfo, "instr info null");
         var comm = instrInfo.commission;
         var instr = instrInfo.instrument;
-        Objects.requireNonNull(instrInfo, "instr info null");
         Objects.requireNonNull(instr, "instrument null");
         Objects.requireNonNull(comm, "commission null");
         // Trading day not null.
@@ -191,24 +191,13 @@ public class ActiveOrder {
         for (var a : avail) {
             long vol = Math.min(a.getAvailableVolume(), volume);
             // Calculate shares.
+            // No need to calculate close profits and amount. They will be updated
+            // on return trade.
             var sharePos = a.getDeepCopyTotal();
             sharePos.ExchMargin /= 1.0D * sharePos.Volume;
             sharePos.Margin /= 1.0D * sharePos.Volume;
             sharePos.CloseVolume = 1;
-            sharePos.CloseAmount = order.LimitPrice * instr.VolumeMultiple;
-            if (sharePos.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
-                // Long position.
-                sharePos.CloseProfitByDate = instr.VolumeMultiple *
-                        (order.LimitPrice - sharePos.LastSettlementPrice);
-                sharePos.CloseProfitByTrade = instr.VolumeMultiple *
-                        (order.LimitPrice - sharePos.OpenPrice);
-            } else {
-                // Short position.
-                sharePos.CloseProfitByDate = instr.VolumeMultiple *
-                        (sharePos.LastSettlementPrice - order.LimitPrice);
-                sharePos.CloseProfitByTrade = instr.VolumeMultiple *
-                        (sharePos.OpenPrice - order.LimitPrice);
-            }
+            // Commission.
             var shareCash = new CThostFtdcTradingAccountField();
             if (sharePos.TradingDay.compareTo(this.config.getTradingDay()) == 0) {
                 // Today position.
@@ -225,7 +214,11 @@ public class ActiveOrder {
                 else
                     shareCash.FrozenCommission = comm.CloseRatioByVolume;
             }
-            r.add(new FrozenPositionDetail(a, sharePos, shareCash, vol));
+            // Set frozen position.
+            var frz = new FrozenPositionDetail(a, sharePos, shareCash, vol);
+            r.add(frz);
+            a.addFrozenPD(frz);
+            // Reduce volume to zero.
             if ((volume -= vol) <= 0)
                 break;
         }
@@ -262,7 +255,7 @@ public class ActiveOrder {
                 if (this.frozenCash == null) {
                     this.config.getLogger().severe(
                             OP.formatLog("no frozen cash",
-                                    rtn.OrderRef, null, 0));
+                                    rtn.OrderRef, null, null));
                     return;
                 }
                 this.frozenCash.cancel();
@@ -270,7 +263,7 @@ public class ActiveOrder {
                 if (this.frozenPD == null || this.frozenPD.size() == 0) {
                     this.config.getLogger().severe(
                             OP.formatLog("no frozen position",
-                                    rtn.OrderRef, null, 0));
+                                    rtn.OrderRef, null, null));
                     return;
                 }
                 // Cancel position.
@@ -278,7 +271,7 @@ public class ActiveOrder {
                 if (p == null) {
                     this.config.getLogger().severe(
                             OP.formatLog("frozen position not found",
-                                    rtn.OrderRef, null, 0));
+                                    rtn.OrderRef, null, null));
                     return;
                 }
                 p.cancel();
@@ -307,7 +300,7 @@ public class ActiveOrder {
             if (this.frozenCash == null) {
                 this.config.getLogger().severe(
                         OP.formatLog("no frozen cash",
-                                trade.OrderRef, null, 0));
+                                trade.OrderRef, null, null));
                 return;
             }
             // Update frozen cash, user cash and user position.
@@ -319,7 +312,7 @@ public class ActiveOrder {
             if (this.frozenPD == null || this.frozenPD.size() == 0) {
                 this.config.getLogger().severe(
                         OP.formatLog("no frozen position",
-                                trade.OrderRef, null, 0));
+                                trade.OrderRef, null, null));
                 return;
             }
             // Update user position, frozen position and user cash.
@@ -327,13 +320,13 @@ public class ActiveOrder {
             if (p == null) {
                 this.config.getLogger().severe(
                         OP.formatLog("frozen position not found",
-                                trade.OrderRef, null, 0));
+                                trade.OrderRef, null, null));
                 return;
             }
             if (p.getFrozenShareCount() < trade.Volume) {
                 this.config.getLogger().severe(
                         OP.formatLog("not enough frozen position",
-                                trade.OrderRef, null, 0));
+                                trade.OrderRef, null, null));
                 return;
             }
             var share = toPositionShare(p.getFrozenSharePD(), trade);
@@ -347,25 +340,20 @@ public class ActiveOrder {
     private CThostFtdcInvestorPositionDetailField toPositionShare(
             CThostFtdcInvestorPositionDetailField p, CThostFtdcTradeField trade) {
         var r = OP.deepCopy(p);
-        var instr = this.config.getInstrInfo(trade.InstrumentID);
-        if (instr == null || instr.instrument == null)
-            throw new NullPointerException(
-                    "instr(" + trade.InstrumentID + ") info null");
-
-        r.CloseAmount = trade.Price * instr.instrument.VolumeMultiple;
-        if (p.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
-            // Long position.
-            r.CloseProfitByTrade = (trade.Price - p.OpenPrice)
-                    * instr.instrument.VolumeMultiple;
-            r.CloseProfitByDate = (trade.Price - p.LastSettlementPrice)
-                    * instr.instrument.VolumeMultiple;
-        } else {
-            // Short position.
-            r.CloseProfitByTrade = (p.OpenPrice - trade.Price)
-                    * instr.instrument.VolumeMultiple;
-            r.CloseProfitByDate = (p.LastSettlementPrice - trade.Price)
-                    * instr.instrument.VolumeMultiple;
-        }
+        var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
+        Objects.requireNonNull(instrInfo, "instr info null");
+        Objects.requireNonNull(instrInfo.instrument, "instrument null");
+        // Calculate position detail.
+        r.CloseAmount = trade.Price * instrInfo.instrument.VolumeMultiple;
+        double token;
+        if (p.Direction == TThostFtdcDirectionType.DIRECTION_BUY)
+            token = 1.0D;   // Long position.
+        else
+            token = -1.0D;  // Short position.
+        r.CloseProfitByTrade = token * (trade.Price - p.OpenPrice)
+                * instrInfo.instrument.VolumeMultiple;
+        r.CloseProfitByDate = token * (trade.Price - p.LastSettlementPrice)
+                * instrInfo.instrument.VolumeMultiple;
         return r;
     }
 
@@ -432,7 +420,7 @@ public class ActiveOrder {
         r.Commission = 0;
         var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
         try {
-            double commission = 0.0D;
+            double commission;
             var comm = instrInfo.commission;
             var instr = instrInfo.instrument;
             if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
@@ -462,7 +450,7 @@ public class ActiveOrder {
         } catch (NullPointerException e) {
             this.config.getLogger().warning(
                     OP.formatLog("failed compute commission", trade.OrderRef,
-                            null, 0));
+                            null, null));
         }
         return r;
     }

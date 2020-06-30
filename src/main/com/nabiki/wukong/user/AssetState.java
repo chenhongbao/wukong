@@ -29,5 +29,5 @@
 package com.nabiki.wukong.user;
 
 public enum AssetState {
-   ONGOING, CANCELED
+   ONGOING, CANCELED, SETTLING, SETTLED, RENEW
 }

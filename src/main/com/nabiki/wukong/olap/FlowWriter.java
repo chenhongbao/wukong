@@ -159,4 +159,12 @@ public class FlowWriter {
                 ensureFile(this.errDir,
                         "info." + getTimeStamp() + ".json"));
     }
+
+    public void writeSettle(CThostFtdcTradingAccountField cash) {
+        // TODO write settled cash
+    }
+
+    public void writeSettle(CThostFtdcInvestorPositionDetailField position) {
+        // TODO write settled position
+    }
 }

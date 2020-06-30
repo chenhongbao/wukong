@@ -87,7 +87,7 @@ public class FlowWriterDB {
             } catch (Throwable e) {
                 config.getLogger().severe(
                         OP.formatLog("failed loading JDBC", null,
-                                null, 0));
+                                null, null));
             }
         }
 
@@ -107,7 +107,7 @@ public class FlowWriterDB {
                 } catch (InterruptedException e) {
                     config.getLogger().warning(
                             OP.formatLog("condition await interrupted",
-                                    null, e.getMessage(), 0));
+                                    null, e.getMessage(), null));
                 } catch (SQLException e) {
                     config.getLogger().warning(
                             OP.formatLog("failed SQL execution",
@@ -116,7 +116,7 @@ public class FlowWriterDB {
                 } catch (Throwable th) {
                     config.getLogger().warning(
                             OP.formatLog("null pointer", null,
-                                    th.getMessage(), 0));
+                                    th.getMessage(), null));
                 }finally {
                     lck.unlock();
                 }
@@ -127,7 +127,7 @@ public class FlowWriterDB {
             if (this.jdbc != null && this.jdbc.isValid(1))
                 return;
             // Clear old stuff.
-            if (!this.jdbc.isClosed()) {
+            if (this.jdbc != null && !this.jdbc.isClosed()) {
                 this.preStmtTrade.close();
                 this.preStmtOrder.close();
                 this.jdbc.close();
@@ -277,14 +277,12 @@ public class FlowWriterDB {
                 if (this.preStmtOrder.executeUpdate() != 1)
                     config.getLogger().warning(
                             OP.formatLog("failed table insertion",
-                                    null, null, 0));
+                                    null, null, null));
             } catch (SQLException e) {
                 config.getLogger().warning(
                         OP.formatLog("failed open jdbc connection",
                                 null, e.getMessage(), e.getErrorCode()));
-                return;
             }
-
         }
 
         private void execSQL(CThostFtdcTradeField trade) {
@@ -324,12 +322,11 @@ public class FlowWriterDB {
                 if (this.preStmtOrder.executeUpdate() != 1)
                     config.getLogger().warning(
                             OP.formatLog("failed table insertion",
-                                    null, null, 0));
+                                    null, null, null));
             } catch (SQLException e) {
                 config.getLogger().warning(
                         OP.formatLog("failed open jdbc connection",
                                 null, e.getMessage(), e.getErrorCode()));
-                return;
             }
         }
         

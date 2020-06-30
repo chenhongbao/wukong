@@ -28,5 +28,5 @@
 
 package com.nabiki.wukong.user;
 
-public class Assets {
+public class User {
 }

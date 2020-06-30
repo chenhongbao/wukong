@@ -294,7 +294,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         if (active == null) {
             this.config.getLogger().warning(
                     OP.formatLog("active order not found", rtn.OrderRef,
-                            null, 0));
+                            null, null));
             return;
         }
         // Adjust user.
@@ -308,7 +308,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         } catch (Throwable th) {
             this.config.getLogger().severe(
                     OP.formatLog("failed update rtn order", rtn.OrderRef,
-                            th.getMessage(), 0));
+                            th.getMessage(), null));
         }
     }
 
@@ -317,7 +317,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         if (active == null) {
             this.config.getLogger().warning(
                     OP.formatLog("active order not found", trade.OrderRef,
-                            null, 0));
+                            null, null));
             return;
         }
         // Adjust user.
@@ -330,7 +330,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
         } catch (Throwable th) {
             this.config.getLogger().severe(
                     OP.formatLog("failed update rtn trade", trade.OrderRef,
-                            th.getMessage(), 0));
+                            th.getMessage(), null));
         }
     }
 
@@ -538,7 +538,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
             } catch (InterruptedException e) {
                 config.getLogger().warning(
                         OP.formatLog("failed sleep", null,
-                                e.getMessage(), 0));
+                                e.getMessage(), null));
             }
 
             var req0 = new CThostFtdcQryInstrumentCommissionRateField();

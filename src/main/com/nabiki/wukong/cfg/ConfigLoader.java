@@ -39,8 +39,6 @@ import com.nabiki.wukong.cfg.plain.JdbcLoginConfig;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.cfg.plain.TradingHourConfig;
 
-import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -139,7 +137,7 @@ public class ConfigLoader {
                 } catch (IOException e) {
                     config.getLogger().warning(
                             OP.formatLog("failed instr config", null,
-                                    e.getMessage(), 0));
+                                    e.getMessage(), null));
                 }
                 return false;
             });
@@ -188,7 +186,7 @@ public class ConfigLoader {
                 } catch (IOException | NullPointerException e) {
                     config.getLogger().warning(
                             OP.formatLog("failed trading hour config",
-                                    null, e.getMessage(), 0));
+                                    null, e.getMessage(), null));
                 }
                 return false;
             });
@@ -220,7 +218,7 @@ public class ConfigLoader {
                 } catch (IOException e) {
                     config.getLogger().warning(
                             OP.formatLog("failed login config",
-                                    null, e.getMessage(), 0));
+                                    null, e.getMessage(), null));
                 }
                 return false;
             });
@@ -294,22 +292,19 @@ public class ConfigLoader {
         if (s.size() == 0)
             throw new IOException("jdbc config not found");
         // Just use the first file in first dir.
-        s.iterator().next().file().listFiles(new FileFilter() {
-            @Override
-            public boolean accept(File file) {
-                try {
-                    if (config.jdbcLoginConfig == null
-                            && file.getName().endsWith(".json"))
-                        config.jdbcLoginConfig = OP.fromJson(
-                                OP.readText(file, StandardCharsets.UTF_8),
-                                JdbcLoginConfig.class);
-                } catch (IOException e) {
-                    config.getLogger().warning(
-                            OP.formatLog("failed jdbc login config",
-                                    null, e.getMessage(), 0));
-                }
-                return false;
+        s.iterator().next().file().listFiles(file -> {
+            try {
+                if (config.jdbcLoginConfig == null
+                        && file.getName().endsWith(".json"))
+                    config.jdbcLoginConfig = OP.fromJson(
+                            OP.readText(file, StandardCharsets.UTF_8),
+                            JdbcLoginConfig.class);
+            } catch (IOException e) {
+                config.getLogger().warning(
+                        OP.formatLog("failed jdbc login config",
+                                null, e.getMessage(), null));
             }
+            return false;
         });
         // Write an sample config if not exists.
         if (config.jdbcLoginConfig == null) {

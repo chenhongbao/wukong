@@ -28,48 +28,5 @@
 
 package com.nabiki.wukong.user;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
-import com.nabiki.wukong.OP;
-
-import java.util.LinkedList;
-import java.util.List;
-
-public class UserPositionDetail {
-
-    private final CThostFtdcInvestorPositionDetailField total;
-    private final List<FrozenPositionDetail> frozenPD = new LinkedList<>();
-
-    UserPositionDetail(CThostFtdcInvestorPositionDetailField total) {
-        this.total = total;
-    }
-
-    public void closeShare(CThostFtdcInvestorPositionDetailField share,
-                           long tradeCnt) {
-        this.total.CloseAmount += share.CloseAmount * tradeCnt;
-        this.total.CloseProfitByDate += share.CloseProfitByDate * tradeCnt;
-        this.total.CloseProfitByTrade += share.CloseProfitByTrade * tradeCnt;
-        this.total.CloseVolume += share.CloseVolume * tradeCnt;
-        this.total.ExchMargin -= share.ExchMargin * tradeCnt;
-        this.total.Margin -= share.Margin * tradeCnt;
-    }
-
-    void cancel() {
-        for (var frz : this.frozenPD)
-            frz.cancel();
-    }
-
-    long getAvailableVolume() {
-        long frozen = 0;
-        for (var pd : frozenPD)
-            frozen += pd.getFrozenShareCount();
-        return this.total.Volume - this.total.CloseVolume - frozen;
-    }
-
-    CThostFtdcInvestorPositionDetailField getDeepCopyTotal() {
-        return OP.deepCopy(this.total);
-    }
-
-    void addFrozenPD(FrozenPositionDetail frzPD) {
-        this.frozenPD.add(frzPD);
-    }
+public class UserLoader {
 }
