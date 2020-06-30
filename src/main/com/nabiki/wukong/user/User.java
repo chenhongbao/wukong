@@ -28,5 +28,11 @@
 
 package com.nabiki.wukong.user;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
+
 public class User {
+    CThostFtdcTradingAccountField getTradingAccount() {
+        // TODO calculate and return trading account
+        return null;
+    }
 }

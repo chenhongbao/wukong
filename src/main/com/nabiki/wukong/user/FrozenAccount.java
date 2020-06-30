@@ -30,14 +30,14 @@ package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 
-class FrozenCash {
+class FrozenAccount {
     private final CThostFtdcTradingAccountField frozenShare;
     private final long totalShareCount;
 
     private AssetState state = AssetState.ONGOING;
     private long tradedShareCount = 0;
 
-    FrozenCash(CThostFtdcTradingAccountField share, long shareCount) {
+    FrozenAccount(CThostFtdcTradingAccountField share, long shareCount) {
         this.frozenShare = share;
         this.totalShareCount = shareCount;
     }

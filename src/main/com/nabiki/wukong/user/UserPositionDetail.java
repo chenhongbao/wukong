@@ -35,7 +35,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class UserPositionDetail {
-
     private final CThostFtdcInvestorPositionDetailField total;
     private final List<FrozenPositionDetail> frozenPD = new LinkedList<>();
 

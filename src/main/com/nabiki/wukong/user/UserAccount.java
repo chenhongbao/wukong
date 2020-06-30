@@ -29,20 +29,43 @@
 package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.wukong.OP;
 
-public class UserCash {
+import java.util.LinkedList;
+import java.util.List;
+
+public class UserAccount {
+    private final User parent;
     private final CThostFtdcTradingAccountField total;
+    private final List<FrozenAccount> frozenAcc = new LinkedList<>();
 
-    UserCash(CThostFtdcTradingAccountField total) {
+    UserAccount(CThostFtdcTradingAccountField total, User parent) {
         this.total = total;
+        this.parent = parent;
+    }
+
+    User getParent() {
+        return this.parent;
     }
 
     void addShareCommission(CThostFtdcTradingAccountField share, long tradeCnt) {
         this.total.Commission += share.Commission * tradeCnt;
     }
 
-    CThostFtdcTradingAccountField getTotalCash() {
-        return OP.deepCopy(this.total);
+    double getFrozenCash() {
+        double frz = 0.0D;
+        for (var c : this.frozenAcc)
+            frz += c.getFrozenShareCount() * c.getFrozenShare().FrozenCash;
+        return frz;
+    }
+
+    double getFrozenCommission() {
+        double frz = 0.0D;
+        for (var c: this.frozenAcc)
+            frz += c.getFrozenShareCount() * c.getFrozenShare().FrozenCommission;
+        return frz;
+    }
+
+    void addFrozenAccount(FrozenAccount frz) {
+        this.frozenAcc.add(frz);
     }
 }

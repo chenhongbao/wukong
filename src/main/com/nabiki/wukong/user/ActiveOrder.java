@@ -41,11 +41,11 @@ import com.nabiki.wukong.ctp.ActiveOrderManager;
 import java.util.*;
 
 public class ActiveOrder {
-    private FrozenCash frozenCash;
+    private FrozenAccount frozenAccount;
     private Map<String, FrozenPositionDetail> frozenPD;
 
     private final UUID uuid = UUID.randomUUID();
-    private final UserCash userCash;
+    private final UserAccount userAccount;
     private final UserPosition userPos;
     private final ActiveOrderManager orderMgr;
     private final Config config;
@@ -54,9 +54,9 @@ public class ActiveOrder {
 
     private Integer parseState;
 
-    ActiveOrder(CThostFtdcInputOrderField order, UserCash userCash,
+    ActiveOrder(CThostFtdcInputOrderField order, UserAccount userAccount,
                 UserPosition userPos, ActiveOrderManager mgr, Config cfg) {
-        this.userCash = userCash;
+        this.userAccount = userAccount;
         this.userPos = userPos;
         this.orderMgr = mgr;
         this.config = cfg;
@@ -64,9 +64,9 @@ public class ActiveOrder {
         this.action = null;
     }
 
-    ActiveOrder(CThostFtdcInputOrderActionField action, UserCash userCash,
+    ActiveOrder(CThostFtdcInputOrderActionField action, UserAccount userAccount,
                 UserPosition userPos, ActiveOrderManager mgr, Config cfg) {
-        this.userCash = userCash;
+        this.userAccount = userAccount;
         this.userPos = userPos;
         this.orderMgr = mgr;
         this.config = cfg;
@@ -93,9 +93,11 @@ public class ActiveOrder {
         if (this.order == null || this.config == null)
             throw new NullPointerException("parameter null");
         if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
-            this.frozenCash = getOpenFrozen(this.order);
-            if (this.frozenCash == null)
+            this.frozenAccount = getOpenFrozen(this.order);
+            if (this.frozenAccount == null)
                 return TThostFtdcErrorCode.INSUFFICIENT_MONEY;
+            // Apply frozen cash to parent cash.
+            this.userAccount.addFrozenAccount(this.frozenAccount);
             return this.orderMgr.sendDetailOrder(this.order, this);
         } else {
             var pds = getCloseFrozen(this.order);
@@ -115,6 +117,9 @@ public class ActiveOrder {
                 refs.add(ref);
                 if (x != 0)
                     ret = x;
+                else
+                    // Apply frozen position to parent position.
+                    p.getParent().addFrozenPD(p);
             }
             return ret;
         }
@@ -138,7 +143,7 @@ public class ActiveOrder {
         return this.uuid;
     }
 
-    private FrozenCash getOpenFrozen(CThostFtdcInputOrderField order) {
+    private FrozenAccount getOpenFrozen(CThostFtdcInputOrderField order) {
         var instrInfo = this.config.getInstrInfo(order.InstrumentID);
         Objects.requireNonNull(instrInfo, "instr info null");
         var comm = instrInfo.commission;
@@ -167,7 +172,13 @@ public class ActiveOrder {
                     * comm.OpenRatioByMoney;
         else
             c.FrozenCommission = comm.OpenRatioByVolume;
-        return new FrozenCash(c, order.VolumeTotalOriginal);
+        // Check if available money is enough.
+        var needMoney = c.FrozenCash + c.FrozenCommission;
+        var account = this.userAccount.getParent().getTradingAccount();
+        if (account.Available < needMoney)
+            return null;
+        else
+            return new FrozenAccount(c, order.VolumeTotalOriginal);
     }
 
     private List<FrozenPositionDetail> getCloseFrozen(
@@ -214,19 +225,22 @@ public class ActiveOrder {
                 else
                     shareCash.FrozenCommission = comm.CloseRatioByVolume;
             }
-            // Set frozen position.
+            // Keep frozen position.
             var frz = new FrozenPositionDetail(a, sharePos, shareCash, vol);
             r.add(frz);
-            a.addFrozenPD(frz);
             // Reduce volume to zero.
             if ((volume -= vol) <= 0)
                 break;
         }
-        return r;
+        if (volume > 0)
+            return null; // Failed to ensure position to close.
+        else
+            return r;
     }
 
     private CThostFtdcInputOrderField toCloseOrder(FrozenPositionDetail pd) {
         var cls = OP.deepCopy(getOriginOrder());
+        Objects.requireNonNull(cls, "failed deep copy");
         cls.VolumeTotalOriginal = (int) pd.getFrozenShareCount();
         if (pd.getFrozenSharePD().TradingDay
                 .compareTo(this.config.getTradingDay()) != 0) {
@@ -252,13 +266,13 @@ public class ActiveOrder {
         if (flag == TThostFtdcOrderStatusType.CANCELED) {
             if (rtn.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
                 // Cancel cash.
-                if (this.frozenCash == null) {
+                if (this.frozenAccount == null) {
                     this.config.getLogger().severe(
                             OP.formatLog("no frozen cash",
                                     rtn.OrderRef, null, null));
                     return;
                 }
-                this.frozenCash.cancel();
+                this.frozenAccount.cancel();
             } else {
                 if (this.frozenPD == null || this.frozenPD.size() == 0) {
                     this.config.getLogger().severe(
@@ -297,16 +311,16 @@ public class ActiveOrder {
         var volume = trade.Volume;
         if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
             // Open.
-            if (this.frozenCash == null) {
+            if (this.frozenAccount == null) {
                 this.config.getLogger().severe(
                         OP.formatLog("no frozen cash",
                                 trade.OrderRef, null, null));
                 return;
             }
             // Update frozen cash, user cash and user position.
-            this.frozenCash.openShare(volume);
+            this.frozenAccount.openShare(volume);
             this.userPos.getUserPD(trade.InstrumentID).add(toUserPosition(trade));
-            this.userCash.addShareCommission(commissionShare, volume);
+            this.userAccount.addShareCommission(commissionShare, volume);
         } else {
             // Close.
             if (this.frozenPD == null || this.frozenPD.size() == 0) {
@@ -333,13 +347,14 @@ public class ActiveOrder {
             // Check the frozen position OK, here won't throw exception.
             p.closeShare(trade.Volume);
             p.getParent().closeShare(share, trade.Volume);
-            this.userCash.addShareCommission(commissionShare, trade.Volume);
+            this.userAccount.addShareCommission(commissionShare, trade.Volume);
         }
     }
 
     private CThostFtdcInvestorPositionDetailField toPositionShare(
             CThostFtdcInvestorPositionDetailField p, CThostFtdcTradeField trade) {
         var r = OP.deepCopy(p);
+        Objects.requireNonNull(r, "failed deep copy");
         var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
         Objects.requireNonNull(instrInfo, "instr info null");
         Objects.requireNonNull(instrInfo.instrument, "instrument null");
