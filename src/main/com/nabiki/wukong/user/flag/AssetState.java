@@ -26,25 +26,8 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.user.flag;
 
-import java.util.List;
-import java.util.Map;
-
-public class UserPosition {
-    private final User parent;
-    private final Map<String, List<UserPositionDetail>> userPD;
-
-    UserPosition(Map<String, List<UserPositionDetail>> pd, User parent) {
-        this.userPD = pd;
-        this.parent = parent;
-    }
-
-    User getParent() {
-        return this.parent;
-    }
-
-    List<UserPositionDetail> getUserPD(String instrID) {
-        return this.userPD.get(instrID);
-    }
+public enum AssetState {
+   ONGOING, CANCELED
 }

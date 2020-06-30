@@ -42,7 +42,7 @@ import java.time.format.DateTimeFormatter;
 
 public class FlowWriter {
     private final Config config;
-    private final Path reqDir, rtnDir, rspDir, errDir;
+    private final Path reqDir, rtnDir, rspDir, errDir, stlDir;
     private final DateTimeFormatter formatter
             = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSSSSS");
     private final FlowWriterDB db;
@@ -54,6 +54,7 @@ public class FlowWriter {
         this.rtnDir = getPath("dir.flow.rtn");
         this.rspDir = getPath("dir.flow.rsp");
         this.errDir = getPath("dir.flow.err");
+        this.stlDir = getPath("dir.flow.stl");
     }
 
     private Path getPath(String key) {
@@ -161,10 +162,40 @@ public class FlowWriter {
     }
 
     public void writeSettle(CThostFtdcTradingAccountField cash) {
-        // TODO write settled cash
+        var dir = Path.of(this.stlDir.toString(), this.config.getTradingDay(),
+                cash.AccountID);
+        try {
+            if (!dir.toFile().exists() || !dir.toFile().isDirectory())
+                Files.createDirectories(dir);
+            var file = Path.of(dir.toString(), "account.json").toFile();
+            if (!file.exists() || !file.isFile())
+                file.createNewFile();
+            OP.writeText(OP.toJson(cash), file, StandardCharsets.UTF_8,
+                    false);
+        } catch (IOException e) {
+            this.config.getLogger().severe(OP.formatLog(
+                    "failed settlement", cash.AccountID,
+                    e.getMessage(), null));
+        }
     }
 
     public void writeSettle(CThostFtdcInvestorPositionDetailField position) {
-        // TODO write settled position
+        var dir = Path.of(this.stlDir.toString(), this.config.getTradingDay(),
+                position.InvestorID);
+        try {
+            if (!dir.toFile().exists() || !dir.toFile().isDirectory())
+                Files.createDirectories(dir);
+            var fn = "position." + position.InstrumentID + "." + System.nanoTime()
+                    + ".json";
+            var file = Path.of(dir.toString(), fn).toFile();
+            if (!file.exists() || !file.isFile())
+                file.createNewFile();
+            OP.writeText(OP.toJson(position), file, StandardCharsets.UTF_8,
+                    false);
+        } catch (IOException e) {
+            this.config.getLogger().severe(OP.formatLog(
+                    "failed settlement", position.InstrumentID,
+                    e.getMessage(), null));
+        }
     }
 }

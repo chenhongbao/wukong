@@ -26,13 +26,54 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.user.core;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
+import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.user.flag.AssetState;
 
-public class User {
-    CThostFtdcTradingAccountField getTradingAccount() {
-        // TODO calculate and return trading account
-        return null;
+public class FrozenAccount {
+    private final CThostFtdcTradingAccountField frozenShare;
+    private final long totalShareCount;
+
+    private AssetState state = AssetState.ONGOING;
+    private long tradedShareCount = 0;
+
+    public FrozenAccount(CThostFtdcTradingAccountField share, long shareCount) {
+        this.frozenShare = share;
+        this.totalShareCount = shareCount;
+    }
+
+    double getFrozenShareCount() {
+        if (this.state == AssetState.CANCELED)
+            return 0;
+        else
+            return this.totalShareCount - this.tradedShareCount;
+    }
+
+    CThostFtdcTradingAccountField getFrozenShare() {
+        return this.frozenShare;
+    }
+
+    /**
+     * Cancel an open order whose frozen account is also canceled.
+     */
+    @InTeam
+    public void cancel() {
+        this.state = AssetState.CANCELED;
+    }
+
+    /**
+     * An open order is traded(or partly) whose frozen account is also decreased.
+     *
+     * @param tradeCnt traded volume
+     */
+    @InTeam
+    public void openShare(long tradeCnt) {
+        if (tradeCnt < 0)
+            throw new IllegalArgumentException("negative traded share count");
+        if (getFrozenShareCount() < tradeCnt)
+            throw new IllegalStateException("not enough frozen shares");
+        this.tradedShareCount -= tradeCnt;
     }
 }

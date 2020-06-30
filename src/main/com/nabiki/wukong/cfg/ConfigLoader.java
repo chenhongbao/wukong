@@ -28,6 +28,7 @@
 
 package com.nabiki.wukong.cfg;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentCommissionRateField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentMarginRateField;
@@ -78,6 +79,11 @@ public class ConfigLoader {
             setInstrConfig();
         }
         return config;
+    }
+
+    @InTeam
+    public static void setDepthMarketData(CThostFtdcDepthMarketDataField md) {
+        config.depths.put(md.InstrumentID, md);
     }
 
     @InTeam
@@ -253,6 +259,7 @@ public class ConfigLoader {
         flow.setDirectory("dir.flow.rtn", ".rtn");
         flow.setDirectory("dir.flow.rsp", ".rsp");
         flow.setDirectory("dir.flow.err", ".err");
+        flow.setDirectory("dir.flow.stl", ".stl");
 
         var ctp = flow.get("dir.flow.ctp");
         ctp.setDirectory("dir.flow.ctp.trader", ".trader");

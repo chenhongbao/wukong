@@ -26,10 +26,11 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.user.core;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
 import com.nabiki.wukong.OP;
+import com.nabiki.wukong.annotation.InTeam;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -38,7 +39,7 @@ public class UserPositionDetail {
     private final CThostFtdcInvestorPositionDetailField total;
     private final List<FrozenPositionDetail> frozenPD = new LinkedList<>();
 
-    UserPositionDetail(CThostFtdcInvestorPositionDetailField total) {
+    public UserPositionDetail(CThostFtdcInvestorPositionDetailField total) {
         this.total = total;
     }
 
@@ -52,23 +53,58 @@ public class UserPositionDetail {
         this.total.Margin -= share.Margin * tradeCnt;
     }
 
-    void cancel() {
+    /**
+     * Cancel an close order whose frozen volume is released.
+     */
+    @InTeam
+    public void cancel() {
         for (var frz : this.frozenPD)
             frz.cancel();
     }
 
-    long getAvailableVolume() {
+    /**
+     * The currently available volume to close.
+     *
+     * @return available volume to close
+     */
+    public long getAvailableVolume() {
         long frozen = 0;
         for (var pd : frozenPD)
             frozen += pd.getFrozenShareCount();
         return this.total.Volume - this.total.CloseVolume - frozen;
     }
 
-    CThostFtdcInvestorPositionDetailField getDeepCopyTotal() {
+    double getFrozenMargin() {
+        double frz = 0.0D;
+        for (var c : this.frozenPD)
+            frz += c.getFrozenShareCount() * c.getFrozenSharePD().Margin;
+        return frz;
+    }
+
+    double getFrozenCommission() {
+        double frz = 0.0D;
+        for (var c : this.frozenPD)
+            frz += c.getFrozenShareCount() * c.getFrozenShareAcc().FrozenCommission;
+        return frz;
+    }
+
+    /**
+     * Get a deep copy of the original position detail.
+     *
+     * @return a deep copy of original position detail
+     */
+    @InTeam
+    public CThostFtdcInvestorPositionDetailField getDeepCopyTotal() {
         return OP.deepCopy(this.total);
     }
 
-    void addFrozenPD(FrozenPositionDetail frzPD) {
+    /**
+     * Add frozen position for a close order.
+     *
+     * @param frzPD new frozen position
+     */
+    @InTeam
+    public void addFrozenPD(FrozenPositionDetail frzPD) {
         this.frozenPD.add(frzPD);
     }
 }

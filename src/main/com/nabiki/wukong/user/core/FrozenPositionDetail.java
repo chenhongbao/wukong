@@ -26,11 +26,13 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.user.core;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.OP;
+import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.user.flag.AssetState;
 
 public class FrozenPositionDetail {
     // The original position that own this frozen position.
@@ -46,24 +48,40 @@ public class FrozenPositionDetail {
     private AssetState state = AssetState.ONGOING;
     private long tradedShareCount = 0;
 
-    FrozenPositionDetail(UserPositionDetail parent,
-                         CThostFtdcInvestorPositionDetailField frzShare,
-                         CThostFtdcTradingAccountField frzCash,
-                         long totalShareCount) {
+    public FrozenPositionDetail(UserPositionDetail parent,
+                                CThostFtdcInvestorPositionDetailField frzShare,
+                                CThostFtdcTradingAccountField frzCash,
+                                long totalShareCount) {
         this.parent = parent;
         this.frozenSharePD = frzShare;
         this.frozenShareCash = frzCash;
         this.totalShareCount = totalShareCount;
     }
 
-    long getFrozenShareCount() {
+    /**
+     * Get frozen volume of this position detail.
+     *
+     * @return frozen volume
+     */
+    @InTeam
+    public long getFrozenShareCount() {
         if (this.state == AssetState.CANCELED)
             return 0;
         else
             return this.totalShareCount - tradedShareCount;
     }
 
-    void closeShare(long tradeCnt) {
+    /**
+     * Close some volume(a part or all) of a close order.
+     *
+     * <p>When a close order trades, its frozen volume is decreased. If a close
+     * order is canceled, all its frozen volume is released.
+     * </p>
+     *
+     * @param tradeCnt traded volume of a close order
+     */
+    @InTeam
+    public void closeShare(long tradeCnt) {
         if (tradeCnt < 0)
             throw new IllegalArgumentException("negative traded share count");
         if (getFrozenShareCount() < tradeCnt)
@@ -71,19 +89,37 @@ public class FrozenPositionDetail {
         this.tradedShareCount -= tradeCnt;
     }
 
-    void cancel() {
+    /**
+     * Cancel a close order whose frozen volume is all released.
+     */
+    @InTeam
+    public void cancel() {
         this.state = AssetState.CANCELED;
     }
 
-    UserPositionDetail getParent() {
+    /**
+     * Get the original position which this frozen position belongs to.
+     *
+     * @return the position which this frozen position belongs to
+     */
+    @InTeam
+    public UserPositionDetail getParent() {
         return this.parent;
     }
 
-    CThostFtdcInvestorPositionDetailField getFrozenSharePD() {
+    /**
+     * Get the position detail represents 1 share of the closed position, whose
+     * close profit and close amount are pre-calculated. And the margin and exchange
+     * margin are set for 1 volume, and close volume is set to 1.
+     *
+     * @return pre-calculated closed position detail for 1 volume.
+     */
+    @InTeam
+    public CThostFtdcInvestorPositionDetailField getFrozenSharePD() {
         return OP.deepCopy(this.frozenSharePD);
     }
 
-    CThostFtdcTradingAccountField getFrozenShareCash() {
+    CThostFtdcTradingAccountField getFrozenShareAcc() {
         return OP.deepCopy(this.frozenShareCash);
     }
 }

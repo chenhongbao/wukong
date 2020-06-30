@@ -37,6 +37,7 @@ import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.ctp.ActiveOrderManager;
+import com.nabiki.wukong.user.core.*;
 
 import java.util.*;
 
@@ -369,8 +370,13 @@ public class ActiveOrder {
             token = -1.0D;  // Short position.
         r.CloseProfitByTrade = token * (trade.Price - p.OpenPrice)
                 * instrInfo.instrument.VolumeMultiple;
-        r.CloseProfitByDate = token * (trade.Price - p.LastSettlementPrice)
-                * instrInfo.instrument.VolumeMultiple;
+        if (p.TradingDay.compareTo(trade.TradingDay) == 0)
+            // Today's position.
+            r.CloseProfitByDate = r.CloseProfitByTrade;
+        else
+            // History position.
+            r.CloseProfitByDate = token * (trade.Price - p.LastSettlementPrice)
+                    * instrInfo.instrument.VolumeMultiple;
         return r;
     }
 

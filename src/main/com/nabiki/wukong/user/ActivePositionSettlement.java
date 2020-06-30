@@ -31,6 +31,7 @@ package com.nabiki.wukong.user;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.user.core.UserPositionDetail;
 
 import java.util.Collection;
 import java.util.LinkedList;
@@ -64,9 +65,16 @@ public class ActivePositionSettlement {
         for (var p : this.position) {
             // Unset frozen position.
             p.cancel();
-            // Get non-traded volume.
+            /*
+            Keep original volume because the close volume is also kept.
+            When the settled position loaded for next day, the volume and close
+            volume/amount/profit will be adjusted:
+            1. volume -= close volume
+            2. close volume = 0
+            3. close amount = 0;
+            4/ close profits = 0;
+             */
             var origin = p.getDeepCopyTotal();
-            origin.Volume = (int) p.getAvailableVolume();
             origin.SettlementPrice = this.settledPrice;
             if (origin.Volume == 0)
                 continue;

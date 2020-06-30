@@ -26,9 +26,11 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.user.core;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
+import com.nabiki.wukong.OP;
+import com.nabiki.wukong.annotation.InTeam;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -38,39 +40,62 @@ public class UserAccount {
     private final CThostFtdcTradingAccountField total;
     private final List<FrozenAccount> frozenAcc = new LinkedList<>();
 
-    UserAccount(CThostFtdcTradingAccountField total, User parent) {
+    public UserAccount(CThostFtdcTradingAccountField total, User parent) {
         this.total = total;
         this.parent = parent;
     }
 
-    User getParent() {
+    /**
+     * Get the {@link User} that owns this account.
+     *
+     * @return user object that owns this account
+     */
+    @InTeam
+    public User getParent() {
         return this.parent;
     }
 
-    void addShareCommission(CThostFtdcTradingAccountField share, long tradeCnt) {
+    @InTeam
+    public CThostFtdcTradingAccountField getDeepCopyTotal() {
+        return OP.deepCopy(this.total);
+    }
+
+    /**
+     * Add commission for traded order. The order can be open or close.
+     *
+     * @param share the account having the commission for 1 traded volume
+     * @param tradeCnt traded volume
+     */
+    @InTeam
+    public void addShareCommission(CThostFtdcTradingAccountField share, long tradeCnt) {
         this.total.Commission += share.Commission * tradeCnt;
     }
 
-    void cancel() {
+    @InTeam
+    public void cancel() {
         for (var acc : this.frozenAcc)
             acc.cancel();
     }
 
-    double getFrozenCash() {
-        double frz = 0.0D;
-        for (var c : this.frozenAcc)
-            frz += c.getFrozenShareCount() * c.getFrozenShare().FrozenCash;
-        return frz;
+    CThostFtdcTradingAccountField getCurrAccount() {
+        var r = new CThostFtdcTradingAccountField();
+        r.FrozenCash = 0;
+        r.FrozenCommission = 0;
+        for (var c : this.frozenAcc) {
+            r.FrozenCash += c.getFrozenShareCount() * c.getFrozenShare().FrozenCash;
+            r.FrozenCommission += c.getFrozenShareCount()
+                    * c.getFrozenShare().FrozenCommission;
+        }
+        return r;
     }
 
-    double getFrozenCommission() {
-        double frz = 0.0D;
-        for (var c: this.frozenAcc)
-            frz += c.getFrozenShareCount() * c.getFrozenShare().FrozenCommission;
-        return frz;
-    }
-
-    void addFrozenAccount(FrozenAccount frz) {
+    /**
+     * Add frozen account for a new open order.
+     *
+     * @param frz new frozen account
+     */
+    @InTeam
+    public void addFrozenAccount(FrozenAccount frz) {
         this.frozenAcc.add(frz);
     }
 }
