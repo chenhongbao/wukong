@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code AliveOrderManager} keeps the status of all alive orders, interacts with
  * JNI interfaces and invoke callback methods to process responses.
  */
-public class ActiveOrderManager extends CThostFtdcTraderSpi {
+public class CTPOrderManager extends CThostFtdcTraderSpi implements com.nabiki.wukong.user.ActiveOrderManager {
     private final OrderMapper mapper = new OrderMapper();
     private final AtomicInteger orderRef = new AtomicInteger(0);
     private final Config config;
@@ -63,7 +63,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
             qryInstrLast = false;
     private CThostFtdcRspUserLoginField rspLogin;
 
-    ActiveOrderManager(Config cfg) {
+    CTPOrderManager(Config cfg) {
         this.config = cfg;
         this.loginCfg = this.config.getLoginConfigs().get("trader");
         this.flowWrt = new FlowWriter(this.config);
@@ -78,6 +78,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
      *
      * @return {@link OrderMapper}
      */
+    @Override
     @InTeam
     public OrderMapper getMapper() {
         return this.mapper;
@@ -142,6 +143,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
      * @param active alive order
      * @return returned value from JNI call
      */
+    @Override
     public int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active) {
         if (!this.isConfirmed)
             throw new IllegalStateException("unconfirmed yet");
@@ -176,6 +178,7 @@ public class ActiveOrderManager extends CThostFtdcTraderSpi {
      * @param alive alive order
      * @return error code, or 0 if successful
      */
+    @Override
     public int sendOrderAction(CThostFtdcInputOrderActionField action,
                                ActiveOrder alive) {
         if (!this.isConfirmed)

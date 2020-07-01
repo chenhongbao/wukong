@@ -33,7 +33,6 @@ import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.cfg.Config;
-import com.nabiki.wukong.ctp.ActiveOrderManager;
 import com.nabiki.wukong.ctp.CThostFtdcInvestorPositionField;
 import com.nabiki.wukong.ctp.TThostFtdcPosiDirectionType;
 import com.nabiki.wukong.user.core.FrozenAccount;

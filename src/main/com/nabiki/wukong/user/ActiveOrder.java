@@ -36,7 +36,6 @@ import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.cfg.Config;
-import com.nabiki.wukong.ctp.ActiveOrderManager;
 import com.nabiki.wukong.user.core.*;
 
 import java.util.*;
