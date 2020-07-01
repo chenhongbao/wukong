@@ -53,22 +53,22 @@ public class ActiveOrder {
     private final CThostFtdcInputOrderField order;
     private final CThostFtdcInputOrderActionField action;
 
-    private Integer parseState;
+    private Integer retCode;
 
-    ActiveOrder(CThostFtdcInputOrderField order, UserAccount userAccount,
-                UserPosition userPos, ActiveOrderManager mgr, Config cfg) {
-        this.userAccount = userAccount;
-        this.userPos = userPos;
+    ActiveOrder(CThostFtdcInputOrderField order, User user, ActiveOrderManager mgr,
+                Config cfg) {
+        this.userAccount = user.getAccount();
+        this.userPos = user.getPosition();
         this.orderMgr = mgr;
         this.config = cfg;
         this.order = order;
         this.action = null;
     }
 
-    ActiveOrder(CThostFtdcInputOrderActionField action, UserAccount userAccount,
-                UserPosition userPos, ActiveOrderManager mgr, Config cfg) {
-        this.userAccount = userAccount;
-        this.userPos = userPos;
+    ActiveOrder(CThostFtdcInputOrderActionField action, User user,
+                ActiveOrderManager mgr, Config cfg) {
+        this.userAccount = user.getAccount();
+        this.userPos = user.getPosition();
         this.orderMgr = mgr;
         this.config = cfg;
         this.order = null;
@@ -90,41 +90,59 @@ public class ActiveOrder {
         return this.action;
     }
 
-    int execOrder() {
+    Map<String, FrozenPositionDetail> getFrozenPD() {
+        return this.frozenPD;
+    }
+
+    FrozenAccount getFrozenAccount() {
+        return this.frozenAccount;
+    }
+
+    void execOrder() {
         if (this.order == null || this.config == null)
             throw new NullPointerException("parameter null");
-        if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
-            this.frozenAccount = getOpenFrozen(this.order);
-            if (this.frozenAccount == null)
-                return TThostFtdcErrorCode.INSUFFICIENT_MONEY;
-            var r = this.orderMgr.sendDetailOrder(this.order, this);
-            if (r == 0)
+        if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN)
+            insertOpen();
+        else
+            insertClose();
+    }
+
+    private void insertOpen() {
+        this.frozenAccount = getOpenFrozen(this.order);
+        if (this.frozenAccount == null) {
+            this.retCode = TThostFtdcErrorCode.INSUFFICIENT_MONEY;
+        } else {
+            this.retCode = this.orderMgr.sendDetailOrder(this.order, this);
+            if (this.retCode == 0)
                 // Apply frozen account to parent account.
                 this.userAccount.addFrozenAccount(this.frozenAccount);
-            return r;
-        } else {
-            var pds = getCloseFrozen(this.order);
-            if (pds == null || pds.size() == 0)
-                return TThostFtdcErrorCode.OVER_CLOSE_POSITION;
-            Set<String> refs = new HashSet<>();
-            this.frozenPD = new HashMap<>();
-            // Send close request.
-            int ret = 0;
-            for (var p : pds) {
-                var x = this.orderMgr.sendDetailOrder(toCloseOrder(p), this);
-                // Map order reference to frozen position.
-                var ref = findRef(refs,
-                        this.orderMgr.getMapper().getDetailRef(getOrderUUID()));
-                this.frozenPD.put(ref, p);
-                // Update used ref.
-                refs.add(ref);
-                if (x == 0)
-                    // Apply frozen position to parent position.
-                    p.getParent().addFrozenPD(p);
-                else
-                    ret = x;
+        }
+    }
+
+    private void insertClose() {
+        var pds = getCloseFrozen(this.order);
+        if (pds == null || pds.size() == 0) {
+            this.retCode = TThostFtdcErrorCode.OVER_CLOSE_POSITION;
+            return;
+        }
+        Set<String> refs = new HashSet<>();
+        this.frozenPD = new HashMap<>();
+        // Send close request.
+        for (var p : pds) {
+            var x = this.orderMgr.sendDetailOrder(toCloseOrder(p), this);
+            // Map order reference to frozen position.
+            var ref = findRef(refs,
+                    this.orderMgr.getMapper().getDetailRef(getOrderUUID()));
+            this.frozenPD.put(ref, p);
+            // Update used ref.
+            refs.add(ref);
+            if (x == 0) {
+                // Apply frozen position to parent position.
+                p.getParent().addFrozenPD(p);
+            } else {
+                this.retCode = x;
+                break;
             }
-            return ret;
         }
     }
 
@@ -144,6 +162,11 @@ public class ActiveOrder {
     @InTeam
     public UUID getOrderUUID() {
         return this.uuid;
+    }
+
+    @InTeam
+    public Integer getRetCode() {
+        return this.retCode;
     }
 
     private FrozenAccount getOpenFrozen(CThostFtdcInputOrderField order) {

@@ -34,18 +34,15 @@ import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.user.flag.UserState;
 
 public class User {
-    private final UserPosition position;
-    private final UserAccount account;
+    private UserPosition position;
+    private UserAccount account;
 
     private UserPosition settledPosition;
     private UserAccount settledAccount;
 
     private UserState state = UserState.RENEW;
 
-    User(UserAccount acc, UserPosition pos) {
-        this.account = acc;
-        this.position = pos;
-    }
+    public User() {}
 
     /**
      * Get current trading account<b>(not settled account)</b>. The method always
@@ -93,5 +90,13 @@ public class User {
             return this.account;
         else
             return this.settledAccount;
+    }
+
+    void setAccount(UserAccount account) {
+        this.account = account;
+    }
+
+    void setPosition(UserPosition position) {
+        this.position = position;
     }
 }

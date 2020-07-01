@@ -28,9 +28,12 @@
 
 package com.nabiki.wukong.user.core;
 
+import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
 import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.ctp.CThostFtdcInvestorPositionField;
+import com.nabiki.wukong.ctp.TThostFtdcPosiDirectionType;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -62,16 +65,21 @@ public class UserPositionDetail {
             frz.cancel();
     }
 
+    @InTeam
+    public int getFrozenVolume() {
+        int frozen = 0;
+        for (var pd : frozenPD)
+            frozen += pd.getFrozenShareCount();
+        return frozen;
+    }
+
     /**
      * The currently available volume to close.
      *
      * @return available volume to close
      */
-    public long getAvailableVolume() {
-        long frozen = 0;
-        for (var pd : frozenPD)
-            frozen += pd.getFrozenShareCount();
-        return this.total.Volume - this.total.CloseVolume - frozen;
+    public int getAvailableVolume() {
+        return this.total.Volume - this.total.CloseVolume - getFrozenVolume();
     }
 
     double getFrozenMargin() {
@@ -96,6 +104,48 @@ public class UserPositionDetail {
     @InTeam
     public CThostFtdcInvestorPositionDetailField getDeepCopyTotal() {
         return OP.deepCopy(this.total);
+    }
+
+    /**
+     * Summarize the position details and generate position report. The method needs
+     * today's trading day to decide if the position is YD.
+     *
+     * @param tradingDay today's trading day
+     * @return {@link CThostFtdcInvestorPositionField}
+     */
+    @InTeam
+    public CThostFtdcInvestorPositionField getSummarizedPosition(String tradingDay) {
+        var r = new CThostFtdcInvestorPositionField();
+        // Only need the following 5 fields.
+        r.YdPosition = 0;
+        r.Position = 0;
+        r.TodayPosition = 0;
+        r.CloseVolume = 0;
+        r.LongFrozen = 0;
+        r.ShortFrozen = 0;
+        // Prepare other fields.
+        r.BrokerID = this.total.BrokerID;
+        r.ExchangeID = this.total.ExchangeID;
+        r.InvestorID = this.total.InvestorID;
+        r.PreSettlementPrice = this.total.LastSettlementPrice;
+        r.SettlementPrice = this.total.SettlementPrice;
+        r.InstrumentID = this.total.InstrumentID;
+        r.HedgeFlag = this.total.HedgeFlag;
+        // Calculate fields.
+        if (this.total.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
+            r.PosiDirection = TThostFtdcPosiDirectionType.LONG;
+            r.LongFrozen = getFrozenVolume();
+        } else {
+            r.PosiDirection = TThostFtdcPosiDirectionType.SHORT;
+            r.ShortFrozen = getFrozenVolume();
+        }
+        r.CloseVolume = this.total.CloseVolume;
+        r.Position = this.total.Volume - this.total.CloseVolume;
+        if (this.total.TradingDay.compareTo(tradingDay) != 0)
+            r.YdPosition = this.total.Volume;
+        else
+            r.TodayPosition = r.Position;
+        return r;
     }
 
     /**

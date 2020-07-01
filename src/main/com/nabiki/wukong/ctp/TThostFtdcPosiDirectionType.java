@@ -26,7 +26,10 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.ctp;
 
-public class UserLoader {
+public class TThostFtdcPosiDirectionType {
+    public static final char NET = '1';
+    public static final char LONG = '2';
+    public static final char SHORT = '3';
 }

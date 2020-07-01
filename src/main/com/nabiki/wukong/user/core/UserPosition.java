@@ -32,15 +32,16 @@ import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.annotation.InTeam;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class UserPosition {
     private final User parent;
-    private final Map<String, List<UserPositionDetail>> userPD;
+    private final Map<String, List<UserPositionDetail>> userPD = new HashMap<>();
 
     public UserPosition(Map<String, List<UserPositionDetail>> pd, User parent) {
-        this.userPD = pd;
+        this.userPD.putAll(pd);
         this.parent = parent;
     }
 

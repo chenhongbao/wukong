@@ -64,7 +64,7 @@ public class ConfigLoader {
      * in the configuration file is corrupted or invalid
      */
     @InTeam
-    public static Config load() throws IOException {
+    public static Config loadConfig() throws IOException {
         synchronized (config) {
             // Clear old config.
             if (configLoaded.get())
@@ -77,6 +77,8 @@ public class ConfigLoader {
             setJdbcLoginConfig();
             setTradingHourConfig();
             setInstrConfig();
+            // Set mark.
+            configLoaded.set(true);
         }
         return config;
     }
@@ -150,12 +152,16 @@ public class ConfigLoader {
         }
     }
 
+    /*
+     Only clear the config-defined settings. For those updated in runtime, don't
+     clear them.
+     */
     private static void clearConfig() {
         config.rootDirectory = null;
         config.tradingDay = null;
+        config.jdbcLoginConfig = null;
         config.tradingHour.clear();
         config.login.clear();
-        config.instrInfo.clear();
     }
 
     private static void setTradingHourConfig() throws IOException {

@@ -43,7 +43,7 @@ public class ConfigTest {
     static {
         ConfigLoader.rootPath = "C:\\Users\\chenh\\Desktop\\app_root";
         try {
-            config = ConfigLoader.load();
+            config = ConfigLoader.loadConfig();
         } catch (IOException e) {
             e.printStackTrace();
         }
