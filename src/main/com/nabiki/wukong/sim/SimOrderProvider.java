@@ -30,9 +30,9 @@ package com.nabiki.wukong.sim;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
+import com.nabiki.wukong.active.ActiveOrder;
 import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.tools.OrderMapper;
-import com.nabiki.wukong.user.ActiveOrder;
 
 /**
  * {@code SimOrderManager} provides simulation for order insertion and action.

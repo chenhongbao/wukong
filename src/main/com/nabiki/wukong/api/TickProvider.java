@@ -28,9 +28,9 @@
 
 package com.nabiki.wukong.api;
 
-import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.md.CandleEngine;
 import com.nabiki.wukong.olap.FlowRouter;
+import com.nabiki.wukong.tools.InTeam;
 
 public interface TickProvider {
     @InTeam

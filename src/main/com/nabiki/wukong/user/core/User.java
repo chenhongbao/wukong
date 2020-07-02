@@ -29,16 +29,15 @@
 package com.nabiki.wukong.user.core;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.wukong.annotation.InTeam;
-import com.nabiki.wukong.annotation.OutTeam;
-import com.nabiki.wukong.user.flag.UserState;
+import com.nabiki.wukong.tools.InTeam;
+import com.nabiki.wukong.tools.OutTeam;
+import com.nabiki.wukong.user.plain.InstrumentInfoSet;
+import com.nabiki.wukong.user.plain.SettlementPrices;
+import com.nabiki.wukong.user.plain.UserState;
 
 public class User {
     private UserPosition position;
     private UserAccount account;
-
-    private UserPosition settledPosition;
-    private UserAccount settledAccount;
 
     private UserState state = UserState.RENEW;
 
@@ -70,33 +69,34 @@ public class User {
     }
 
     @InTeam
-    public void settle(UserAccount settledAccount, UserPosition settledPosition) {
-        this.state = UserState.SETTLED;
-        this.settledAccount = settledAccount;
-        this.settledPosition = settledPosition;
+    public UserState getState() {
+        return this.state;
     }
 
     @InTeam
     public UserPosition getPosition() {
-        if (this.state == UserState.RENEW)
-            return this.position;
-        else
-            return this.settledPosition;
+        return this.position;
     }
 
     @InTeam
     public UserAccount getAccount() {
-        if (this.state == UserState.RENEW)
-            return this.account;
-        else
-            return this.settledAccount;
+        return this.account;
     }
 
-    void setAccount(UserAccount account) {
-        this.account = account;
+    @InTeam
+    public void settle(SettlementPrices prices, InstrumentInfoSet info,
+                       String tradingDay) {
+        // First position, then account.
+        this.position.settle(prices, info, tradingDay);
+        this.account.settle(this.position.getCurrPD(), tradingDay);
+        this.state = UserState.SETTLED;
     }
 
-    void setPosition(UserPosition position) {
-        this.position = position;
+    public void setAccount(UserAccount usrAccount) {
+        this.account = usrAccount;
+    }
+
+    public void setPosition(UserPosition usrPosition) {
+        this.position = usrPosition;
     }
 }

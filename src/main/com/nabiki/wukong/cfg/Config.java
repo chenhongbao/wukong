@@ -29,12 +29,12 @@
 package com.nabiki.wukong.cfg;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.cfg.plain.JdbcLoginConfig;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.tools.EasyFile;
 import com.nabiki.wukong.tools.OP;
+import com.nabiki.wukong.tools.OutTeam;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -29,13 +29,13 @@
 package com.nabiki.wukong.user.core;
 
 import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.wukong.annotation.InTeam;
-import com.nabiki.wukong.cfg.plain.InstrumentInfo;
+import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
-import com.nabiki.wukong.user.flag.AssetState;
+import com.nabiki.wukong.user.plain.AssetState;
 
 import java.util.Objects;
 
@@ -84,17 +84,18 @@ public class FrozenPositionDetail {
      * </p>
      *
      * @param trade trade response
-     * @param instrInfo instrument info
+     * @param instr instrument
      */
     @InTeam
-    public void updateCloseTrade(CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
+    public void updateCloseTrade(CThostFtdcTradeField trade,
+                                 CThostFtdcInstrumentField instr) {
         if (trade.Volume < 0)
             throw new IllegalArgumentException("negative traded share count");
         if (getFrozenShareCount() < trade.Volume)
             throw new IllegalStateException("not enough frozen shares");
         this.tradedShareCount -= trade.Volume;
         // Update parent.
-        var share = toPositionShare(this.frozenSharePD, trade, instrInfo);
+        var share = toPositionShare(this.frozenSharePD, trade, instr);
         this.parent.closePosition(share, trade.Volume);
     }
 
@@ -133,27 +134,25 @@ public class FrozenPositionDetail {
 
     private CThostFtdcInvestorPositionDetailField toPositionShare(
             CThostFtdcInvestorPositionDetailField p, CThostFtdcTradeField trade,
-            InstrumentInfo instrInfo) {
+            CThostFtdcInstrumentField instr) {
         var r = OP.deepCopy(p);
         Objects.requireNonNull(r, "failed deep copy");
-        Objects.requireNonNull(instrInfo, "instr info null");
-        Objects.requireNonNull(instrInfo.instrument, "instrument null");
         // Calculate position detail.
-        r.CloseAmount = trade.Price * instrInfo.instrument.VolumeMultiple;
+        r.CloseAmount = trade.Price * instr.VolumeMultiple;
         double token;
         if (p.Direction == TThostFtdcDirectionType.DIRECTION_BUY)
             token = 1.0D;   // Long position.
         else
             token = -1.0D;  // Short position.
         r.CloseProfitByTrade = token * (trade.Price - p.OpenPrice)
-                * instrInfo.instrument.VolumeMultiple;
+                * instr.VolumeMultiple;
         if (p.TradingDay.compareTo(trade.TradingDay) == 0)
             // Today's position.
             r.CloseProfitByDate = r.CloseProfitByTrade;
         else
             // History position.
             r.CloseProfitByDate = token * (trade.Price - p.LastSettlementPrice)
-                    * instrInfo.instrument.VolumeMultiple;
+                    * instr.VolumeMultiple;
         return r;
     }
 }

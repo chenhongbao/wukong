@@ -26,20 +26,8 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.api;
+package com.nabiki.wukong.user.plain;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.wukong.active.ActiveOrder;
-import com.nabiki.wukong.tools.InTeam;
-import com.nabiki.wukong.tools.OrderMapper;
-
-public interface OrderProvider {
-    @InTeam
-    OrderMapper getMapper();
-
-    int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active);
-
-    int sendOrderAction(CThostFtdcInputOrderActionField action,
-                        ActiveOrder alive);
+public enum UserState {
+    SETTLED, RENEW
 }

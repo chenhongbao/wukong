@@ -26,13 +26,16 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user.core;
+package com.nabiki.wukong.cfg;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.wukong.annotation.InTeam;
-import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
+import com.nabiki.wukong.user.core.User;
+import com.nabiki.wukong.user.core.UserAccount;
+import com.nabiki.wukong.user.core.UserPosition;
+import com.nabiki.wukong.user.core.UserPositionDetail;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,8 +50,6 @@ public class UserLoader {
      *
      * @param cfg {@link Config} configuration
      * @return collection of users
-     * @throws IOException if directory or file not found, or fail parsing
-     * settlement files
      */
     @InTeam
     public static Collection<User> loadUser(Config cfg) {

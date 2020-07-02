@@ -32,7 +32,7 @@ import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionField;
 import com.nabiki.ctp4j.jni.struct.TThostFtdcPosiDirectionType;
-import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 
 import java.util.LinkedList;

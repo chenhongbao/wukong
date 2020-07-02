@@ -30,11 +30,8 @@ package com.nabiki.wukong.user.core;
 
 import com.nabiki.ctp4j.jni.flag.TThostFtdcCombOffsetFlagType;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.wukong.annotation.InTeam;
-import com.nabiki.wukong.cfg.plain.InstrumentInfo;
+import com.nabiki.ctp4j.jni.struct.*;
+import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 
 import java.util.LinkedList;
@@ -70,11 +67,14 @@ public class UserAccount {
      * Add commission for traded order. The order can be open or close.
      *
      * @param trade the trade response
-     * @param instrInfo instrument info
+     * @param instr instrument
+     * @param comm commission
      */
     @InTeam
-    public void addShareCommission(CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
-        var share = toTradeCommission(trade, instrInfo);
+    public void addShareCommission(CThostFtdcTradeField trade,
+                                   CThostFtdcInstrumentField instr,
+                                   CThostFtdcInstrumentCommissionRateField comm) {
+        var share = toTradeCommission(trade, instr, comm);
         this.total.Commission += share.Commission * trade.Volume;
     }
 
@@ -110,12 +110,10 @@ public class UserAccount {
     }
 
     @InTeam
-    public FrozenAccount getOpenFrozen(CThostFtdcInputOrderField order,
-                                        InstrumentInfo instrInfo) {
-        Objects.requireNonNull(instrInfo, "instr info null");
-        var comm = instrInfo.commission;
-        var margin = instrInfo.margin;
-        var instr = instrInfo.instrument;
+    public FrozenAccount getOpenFrozen(
+            CThostFtdcInputOrderField order, CThostFtdcInstrumentField instr,
+            CThostFtdcInstrumentMarginRateField margin,
+            CThostFtdcInstrumentCommissionRateField comm) {
         Objects.requireNonNull(instr, "instrument null");
         Objects.requireNonNull(margin, "margin null");
         Objects.requireNonNull(comm, "commission null");
@@ -148,12 +146,25 @@ public class UserAccount {
             return new FrozenAccount(this, c, order.VolumeTotalOriginal);
     }
 
+    public void settle(CThostFtdcInvestorPositionDetailField settledPD,
+                       String tradingDay) {
+        // Unset frozen account.
+        cancel();
+        // Calculate fields.
+        this.total.CurrMargin = settledPD.Margin;
+        this.total.CloseProfit = settledPD.CloseProfitByDate;
+        this.total.PositionProfit = settledPD.PositionProfitByDate;
+        this.total.Balance = this.total.PreBalance + (this.total.Deposit - this.total.Withdraw)
+                + (this.total.CloseProfit + this.total.PositionProfit) - this.total.Commission;
+        this.total.Available = this.total.Balance - this.total.CurrMargin;
+        // Trading day.
+        this.total.TradingDay = tradingDay;
+    }
+
     // Only calculate commission.
     private CThostFtdcTradingAccountField toTradeCommission(
-            CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
-        Objects.requireNonNull(instrInfo, "instr info null");
-        var comm = instrInfo.commission;
-        var instr = instrInfo.instrument;
+            CThostFtdcTradeField trade, CThostFtdcInstrumentField instr,
+            CThostFtdcInstrumentCommissionRateField comm) {
         Objects.requireNonNull(comm, "commission null");
         Objects.requireNonNull(instr, "instrument null");
         var r = new CThostFtdcTradingAccountField();

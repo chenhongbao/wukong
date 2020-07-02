@@ -26,8 +26,8 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user.flag;
+package com.nabiki.wukong.user.plain;
 
-public enum UserState {
-    SETTLED, RENEW
+public enum AssetState {
+   ONGOING, CANCELED
 }

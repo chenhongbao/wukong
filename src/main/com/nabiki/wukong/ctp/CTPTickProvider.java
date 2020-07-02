@@ -30,10 +30,10 @@ package com.nabiki.wukong.ctp;
 
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.md.CThostFtdcMdSpi;
-import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.md.CandleEngine;
 import com.nabiki.wukong.olap.FlowRouter;
+import com.nabiki.wukong.tools.InTeam;
 
 public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukong.api.TickProvider {
     private final Config config;

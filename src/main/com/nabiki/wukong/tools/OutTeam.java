@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.annotation;
+package com.nabiki.wukong.tools;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -34,11 +34,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * {@link InTeam} indicates the subject that is annotated is used within author's
- * team so other team members should be notified when this method is changed.
+ * {@link OutTeam} indicates the subject that is annotated is used outside author's
+ * team in the organization. Any change may affect people in other teams in the
+ * organization.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.CONSTRUCTOR,
         ElementType.TYPE, ElementType.MODULE, ElementType.PACKAGE})
-public @interface InTeam {
+public @interface OutTeam {
 }

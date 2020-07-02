@@ -26,20 +26,21 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.annotation;
+package com.nabiki.wukong.user.plain;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
- * {@link OutTeam} indicates the subject that is annotated is used outside author's
- * team in the organization. Any change may affect people in other teams in the
- * organization.
- */
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.CONSTRUCTOR,
-        ElementType.TYPE, ElementType.MODULE, ElementType.PACKAGE})
-public @interface OutTeam {
+public class SettlementPrices {
+    private final Map<String, Double> prices = new HashMap<>();
+
+    public void set(String instrID, double price) {
+        this.prices.put(instrID, price);
+    }
+
+    public double get(String instrID) {
+        return this.prices.get(instrID);
+    }
+
+    public SettlementPrices() {}
 }

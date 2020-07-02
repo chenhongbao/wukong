@@ -26,19 +26,22 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.active;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.ctp4j.jni.struct.TThostFtdcPosiDirectionType;
-import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
+import com.nabiki.wukong.tools.OutTeam;
 import com.nabiki.wukong.user.core.FrozenAccount;
 import com.nabiki.wukong.user.core.FrozenPositionDetail;
 import com.nabiki.wukong.user.core.User;
+import com.nabiki.wukong.user.plain.InstrumentInfoSet;
+import com.nabiki.wukong.user.plain.SettlementPrices;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -56,9 +59,33 @@ public class ActiveUser {
         this.orderMgr = orderMgr;
     }
 
+    @InTeam
     public void settle() {
-        var settlement = new ActiveUserSettlement(this.user, this.config);
-        settlement.settle();
+        // Prepare settlement prices.
+        var prices = new SettlementPrices();
+        for (var instr : this.user.getPosition().getAllInstrID()) {
+            var depth = this.config.getDepthMarketData(instr);
+            if (depth == null)
+                throw new NullPointerException("depth market data null");
+            if (!OP.validPrice(depth.SettlementPrice))
+                throw new IllegalArgumentException(
+                        "no settlement price for " + instr);
+            prices.set(instr, depth.SettlementPrice);
+        }
+        // Prepare instrument info set.
+        var infoSet = new InstrumentInfoSet();
+        for (var instr : this.user.getPosition().getAllInstrID()) {
+            var instrInfo = this.config.getInstrInfo(instr);
+            Objects.requireNonNull(instrInfo, "instr info null");
+            Objects.requireNonNull(instrInfo.instrument, "instrument null");
+            Objects.requireNonNull(instrInfo.margin, "margin null");
+            Objects.requireNonNull(instrInfo.commission, "commission null");
+            // Set info.
+            infoSet.setInstrument(instr, instrInfo.instrument);
+            infoSet.setMargin(instr, instrInfo.margin);
+            infoSet.setCommission(instr, instrInfo.commission);
+        }
+        this.user.settle(prices, infoSet, this.config.getTradingDay());
     }
 
     @OutTeam

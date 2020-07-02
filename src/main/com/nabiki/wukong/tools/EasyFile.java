@@ -28,8 +28,6 @@
 
 package com.nabiki.wukong.tools;
 
-import com.nabiki.wukong.annotation.OutTeam;
-
 import java.io.*;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;

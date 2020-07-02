@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.active;
 
 import com.nabiki.ctp4j.jni.flag.TThostFtdcCombOffsetFlagType;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorCode;
@@ -35,10 +35,10 @@ import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
-import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.plain.InstrumentInfo;
+import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.core.*;
 
@@ -112,7 +112,11 @@ public class ActiveOrder {
 
     private void insertOpen(CThostFtdcInputOrderField order,
                             InstrumentInfo instrInfo) {
-        this.frozenAccount = this.userAccount.getOpenFrozen(this.order, instrInfo);
+        Objects.requireNonNull(instrInfo.instrument, "instrument null");
+        Objects.requireNonNull(instrInfo.margin, "margin null");
+        Objects.requireNonNull(instrInfo.commission, "commission null");
+        this.frozenAccount = this.userAccount.getOpenFrozen(this.order,
+                instrInfo.instrument, instrInfo.margin, instrInfo.commission);
         if (this.frozenAccount == null) {
             this.retCode = TThostFtdcErrorCode.INSUFFICIENT_MONEY;
         } else {
@@ -125,8 +129,10 @@ public class ActiveOrder {
 
     private void insertClose(CThostFtdcInputOrderField order,
                              InstrumentInfo instrInfo) {
-        var pds = this.userPos.peakCloseFrozen(order, instrInfo,
-                this.config.getTradingDay());
+        Objects.requireNonNull(instrInfo.instrument, "instrument null");
+        Objects.requireNonNull(instrInfo.commission, "commission null");
+        var pds = this.userPos.peakCloseFrozen(order, instrInfo.instrument,
+                instrInfo.commission, this.config.getTradingDay());
         if (pds == null || pds.size() == 0) {
             this.retCode = TThostFtdcErrorCode.OVER_CLOSE_POSITION;
             return;
@@ -245,6 +251,10 @@ public class ActiveOrder {
         if (trade == null)
             throw new NullPointerException("return trade null");
         var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
+        Objects.requireNonNull(instrInfo, "instr info null");
+        Objects.requireNonNull(instrInfo.instrument, "instrument null");
+        Objects.requireNonNull(instrInfo.margin, "margin null");
+        Objects.requireNonNull(instrInfo.commission, "commission null");
         if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
             // Open.
             if (this.frozenAccount == null) {
@@ -256,8 +266,11 @@ public class ActiveOrder {
             var depth = this.config.getDepthMarketData(trade.InstrumentID);
             Objects.requireNonNull(depth, "depth market data null");
             // Update frozen cash and user position.
-            this.frozenAccount.updateOpenTrade(trade, instrInfo);
-            this.userPos.updateOpenTrade(trade, instrInfo, depth.PreSettlementPrice);
+            this.frozenAccount.updateOpenTrade(trade, instrInfo.instrument,
+                    instrInfo.commission);
+            this.userPos.updateOpenTrade(trade, instrInfo.instrument,
+                    instrInfo.margin, instrInfo.commission,
+                    depth.PreSettlementPrice);
         } else {
             // Close.
             if (this.frozenPD == null || this.frozenPD.size() == 0) {
@@ -281,8 +294,9 @@ public class ActiveOrder {
                 return;
             }
             // Check the frozen position OK, here won't throw exception.
-            p.updateCloseTrade(trade, instrInfo);
-            this.userAccount.addShareCommission(trade, instrInfo);
+            p.updateCloseTrade(trade, instrInfo.instrument);
+            this.userAccount.addShareCommission(trade, instrInfo.instrument,
+                    instrInfo.commission);
         }
     }
 }

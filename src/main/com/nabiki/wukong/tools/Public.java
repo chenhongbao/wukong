@@ -26,8 +26,19 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user.flag;
+package com.nabiki.wukong.tools;
 
-public enum AssetState {
-   ONGOING, CANCELED
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * {@link Public} indicates the subject that is annotated is used outside the
+ * organization thus any change to this method may affect outside clients.
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.CONSTRUCTOR,
+        ElementType.TYPE, ElementType.MODULE, ElementType.PACKAGE})
+public @interface Public {
 }

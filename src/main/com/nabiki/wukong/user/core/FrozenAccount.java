@@ -28,11 +28,12 @@
 
 package com.nabiki.wukong.user.core;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentCommissionRateField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInstrumentField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.wukong.annotation.InTeam;
-import com.nabiki.wukong.cfg.plain.InstrumentInfo;
-import com.nabiki.wukong.user.flag.AssetState;
+import com.nabiki.wukong.tools.InTeam;
+import com.nabiki.wukong.user.plain.AssetState;
 
 public class FrozenAccount {
     private final CThostFtdcTradingAccountField frozenShare;
@@ -80,16 +81,19 @@ public class FrozenAccount {
      * An open order is traded(or partly) whose frozen account is also decreased.
      *
      * @param trade trade response
-     * @param instrInfo instrument info
+     * @param instr instrument
+     * @param comm commission
      */
     @InTeam
-    public void updateOpenTrade(CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
+    public void updateOpenTrade(CThostFtdcTradeField trade,
+                                CThostFtdcInstrumentField instr,
+                                CThostFtdcInstrumentCommissionRateField comm) {
         if (trade.Volume < 0)
             throw new IllegalArgumentException("negative traded share count");
         if (getFrozenVolume() < trade.Volume)
             throw new IllegalStateException("not enough frozen shares");
         this.tradedShareCount -= trade.Volume;
         // Update parent.
-        this.parent.addShareCommission(trade, instrInfo);
+        this.parent.addShareCommission(trade, instr, comm);
     }
 }

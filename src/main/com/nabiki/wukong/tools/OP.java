@@ -31,7 +31,6 @@ package com.nabiki.wukong.tools;
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.nabiki.wukong.annotation.OutTeam;
 
 import java.io.*;
 import java.nio.charset.Charset;
