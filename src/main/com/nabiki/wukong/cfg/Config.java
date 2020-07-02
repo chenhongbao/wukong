@@ -30,6 +30,7 @@ package com.nabiki.wukong.cfg;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.EasyFile;
+import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.OutTeam;
 import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.cfg.plain.JdbcLoginConfig;
@@ -38,7 +39,6 @@ import com.nabiki.wukong.cfg.plain.LoginConfig;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 
 public class Config {
     // Config's name -> LoginConfig
@@ -52,9 +52,6 @@ public class Config {
 
     // Instrument ID -> Depth market data
     final Map<String, CThostFtdcDepthMarketDataField> depths = new HashMap<>();
-
-    // Instrument product ID pattern.
-    static Pattern productPattern = Pattern.compile("[a-zA-Z]+");
 
     static Logger logger;
     String tradingDay;
@@ -92,16 +89,18 @@ public class Config {
             if (proID != null)
                 return this.tradingHour.get(proID);
             else
-                return this.tradingHour.get(productID(instrID));
+                return this.tradingHour.get(OP.getProductID(instrID));
         }
     }
 
-    static String productID(String instrID) {
-        var m = productPattern.matcher(instrID);
-        if (m.find())
-            return instrID.substring(m.start(), m.end()).toLowerCase();
-        else
-            return null;
+    /**
+     * Get all trading hours.
+     *
+     * @return mapping of all trading hours
+     */
+    @OutTeam
+    public Map<String, TradingHourKeeper> getAllTradingHour() {
+        return this.tradingHour;
     }
 
     /**

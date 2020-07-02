@@ -193,8 +193,9 @@ public class ConfigLoader {
                                 .TradingHour(hour.from, hour.to);
                     var h = new TradingHourKeeper(hours);
                     // Save mapping into config.
+                    // All product IDs are lower case.
                     for (var p : c.productID)
-                        config.tradingHour.put(p, h);
+                        config.tradingHour.put(p.toLowerCase(), h);
                 } catch (IOException | NullPointerException e) {
                     config.getLogger().warning(
                             OP.formatLog("failed trading hour config",

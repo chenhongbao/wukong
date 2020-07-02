@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 public class OP {
     /**
@@ -87,6 +88,8 @@ public class OP {
             return Duration.ZERO;
     }
 
+    // Instrument product ID pattern.
+    private static final Pattern productPattern = Pattern.compile("[a-zA-Z]+");
     private final static Gson gson;
     static {
         gson = new GsonBuilder()
@@ -196,5 +199,20 @@ public class OP {
     public static String formatLog(String hint, String orderRef, String errMsg,
                              Integer errCode) {
         return String.format("%s[%s]%s(%d)", hint, orderRef, errMsg, errCode);
+    }
+
+    /**
+     * Extract product ID from the specified instrument ID. The product ID is usually
+     * the first few letters before the year-month number of  an instrument ID.
+     *
+     * @param instrID instrument ID
+     * @return product ID
+     */
+    public static String getProductID(String instrID) {
+        var m = productPattern.matcher(instrID);
+        if (m.find())
+            return instrID.substring(m.start(), m.end()).toLowerCase();
+        else
+            return null;
     }
 }
