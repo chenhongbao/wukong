@@ -33,9 +33,10 @@ import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorCode;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcOrderStatusType;
 import com.nabiki.ctp4j.jni.struct.*;
-import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.core.*;
 
 import java.util.*;
@@ -47,14 +48,14 @@ public class ActiveOrder {
     private final UUID uuid = UUID.randomUUID();
     private final UserAccount userAccount;
     private final UserPosition userPos;
-    private final ActiveOrderManager orderMgr;
+    private final OrderProvider orderMgr;
     private final Config config;
     private final CThostFtdcInputOrderField order;
     private final CThostFtdcInputOrderActionField action;
 
     private Integer retCode;
 
-    ActiveOrder(CThostFtdcInputOrderField order, User user, ActiveOrderManager mgr,
+    ActiveOrder(CThostFtdcInputOrderField order, User user, OrderProvider mgr,
                 Config cfg) {
         this.userAccount = user.getAccount();
         this.userPos = user.getPosition();
@@ -65,7 +66,7 @@ public class ActiveOrder {
     }
 
     ActiveOrder(CThostFtdcInputOrderActionField action, User user,
-                ActiveOrderManager mgr, Config cfg) {
+                OrderProvider mgr, Config cfg) {
         this.userAccount = user.getAccount();
         this.userPos = user.getPosition();
         this.orderMgr = mgr;

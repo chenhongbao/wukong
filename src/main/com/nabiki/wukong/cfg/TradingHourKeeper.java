@@ -28,8 +28,8 @@
 
 package com.nabiki.wukong.cfg;
 
-import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.OutTeam;
+import com.nabiki.wukong.tools.OP;
 
 import java.time.Duration;
 import java.time.LocalTime;

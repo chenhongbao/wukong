@@ -32,13 +32,15 @@ import com.nabiki.ctp4j.jni.flag.*;
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.trader.CThostFtdcTraderApi;
 import com.nabiki.ctp4j.trader.CThostFtdcTraderSpi;
-import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.annotation.OutTeam;
+import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.ConfigLoader;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.olap.FlowWriter;
+import com.nabiki.wukong.tools.OP;
+import com.nabiki.wukong.tools.OrderMapper;
 import com.nabiki.wukong.user.ActiveOrder;
 
 import java.util.*;
@@ -48,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code AliveOrderManager} keeps the status of all alive orders, interacts with
  * JNI interfaces and invoke callback methods to process responses.
  */
-public class CTPOrderManager extends CThostFtdcTraderSpi implements com.nabiki.wukong.user.ActiveOrderManager {
+public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvider {
     private final OrderMapper mapper = new OrderMapper();
     private final AtomicInteger orderRef = new AtomicInteger(0);
     private final Config config;
@@ -63,7 +65,7 @@ public class CTPOrderManager extends CThostFtdcTraderSpi implements com.nabiki.w
             qryInstrLast = false;
     private CThostFtdcRspUserLoginField rspLogin;
 
-    CTPOrderManager(Config cfg) {
+    CTPOrderProvider(Config cfg) {
         this.config = cfg;
         this.loginCfg = this.config.getLoginConfigs().get("trader");
         this.flowWrt = new FlowWriter(this.config);

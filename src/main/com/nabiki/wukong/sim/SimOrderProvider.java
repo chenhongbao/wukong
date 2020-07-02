@@ -26,19 +26,37 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.user;
+package com.nabiki.wukong.sim;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.wukong.annotation.InTeam;
-import com.nabiki.wukong.ctp.OrderMapper;
+import com.nabiki.wukong.api.OrderProvider;
+import com.nabiki.wukong.tools.OrderMapper;
+import com.nabiki.wukong.user.ActiveOrder;
 
-public interface ActiveOrderManager {
-    @InTeam
-    OrderMapper getMapper();
+/**
+ * {@code SimOrderManager} provides simulation for order insertion and action.
+ * The simulation account has an account ID with suffix {@code 'S'}. When the user
+ * is initialized, its account ID is checked to decide whether the user is a real
+ * trader or simulated trader.
+ *
+ * <p>The simulated trader is initialized with simulation order manager, and the
+ * real trader has CTP order manager.
+ * </p>
+ */
+public class SimOrderProvider implements OrderProvider {
+    @Override
+    public OrderMapper getMapper() {
+        return null;
+    }
 
-    int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active);
+    @Override
+    public int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active) {
+        return 0;
+    }
 
-    int sendOrderAction(CThostFtdcInputOrderActionField action,
-                        ActiveOrder alive);
+    @Override
+    public int sendOrderAction(CThostFtdcInputOrderActionField action, ActiveOrder alive) {
+        return 0;
+    }
 }

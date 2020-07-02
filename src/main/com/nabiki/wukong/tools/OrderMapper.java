@@ -26,11 +26,10 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.ctp;
+package com.nabiki.wukong.tools;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
-import com.nabiki.wukong.OP;
 import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.user.ActiveOrder;
 
@@ -117,7 +116,7 @@ public class OrderMapper {
     /*
     Get alive order with the specified UUID.
      */
-    ActiveOrder getActiveOrder(UUID uuid) {
+    public ActiveOrder getActiveOrder(UUID uuid) {
         return this.uuid2Active.get(uuid);
     }
 
@@ -125,7 +124,7 @@ public class OrderMapper {
     Get alive order that issued the detail order with the specified detail order
     reference.
      */
-    ActiveOrder getActiveOrder(String detailRef) {
+    public ActiveOrder getActiveOrder(String detailRef) {
         return getActiveOrder(this.detRef2Uuid.get(detailRef));
     }
 }

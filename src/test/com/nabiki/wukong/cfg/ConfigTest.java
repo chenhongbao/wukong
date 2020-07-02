@@ -28,9 +28,9 @@
 
 package com.nabiki.wukong.cfg;
 
-import com.nabiki.wukong.OP;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.cfg.plain.TradingHourConfig;
+import com.nabiki.wukong.tools.OP;
 import org.junit.Assert;
 import org.junit.Test;
 

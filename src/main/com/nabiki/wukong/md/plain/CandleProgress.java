@@ -29,7 +29,7 @@
 package com.nabiki.wukong.md.plain;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.OP;
+import com.nabiki.wukong.tools.OP;
 
 public class CandleProgress {
     private final Candle candle = new Candle();

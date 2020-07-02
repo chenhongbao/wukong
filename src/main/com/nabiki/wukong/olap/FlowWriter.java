@@ -29,8 +29,8 @@
 package com.nabiki.wukong.olap;
 
 import com.nabiki.ctp4j.jni.struct.*;
-import com.nabiki.wukong.OP;
 import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.tools.OP;
 
 import java.io.File;
 import java.io.IOException;

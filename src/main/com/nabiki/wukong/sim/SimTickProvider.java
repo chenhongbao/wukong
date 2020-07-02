@@ -28,35 +28,18 @@
 
 package com.nabiki.wukong.sim;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.wukong.ctp.OrderMapper;
-import com.nabiki.wukong.user.ActiveOrder;
-import com.nabiki.wukong.user.ActiveOrderManager;
+import com.nabiki.wukong.api.TickProvider;
+import com.nabiki.wukong.md.CandleEngine;
+import com.nabiki.wukong.olap.FlowRouter;
 
-/**
- * {@code SimOrderManager} provides simulation for order insertion and action.
- * The simulation account has an account ID with suffix {@code 'S'}. When the user
- * is initialized, its account ID is checked to decide whether the user is a real
- * trader or simulated trader.
- *
- * <p>The simulated trader is initialized with simulation order manager, and the
- * real trader has CTP order manager.
- * </p>
- */
-public class SimOrderManager implements ActiveOrderManager {
+public class SimTickProvider implements TickProvider {
     @Override
-    public OrderMapper getMapper() {
-        return null;
+    public void register(CandleEngine engine) {
+
     }
 
     @Override
-    public int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active) {
-        return 0;
-    }
+    public void register(FlowRouter router) {
 
-    @Override
-    public int sendOrderAction(CThostFtdcInputOrderActionField action, ActiveOrder alive) {
-        return 0;
     }
 }

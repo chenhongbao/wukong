@@ -29,12 +29,13 @@
 package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.wukong.OP;
+import com.nabiki.ctp4j.jni.struct.TThostFtdcPosiDirectionType;
 import com.nabiki.wukong.annotation.OutTeam;
+import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.cfg.Config;
-import com.nabiki.wukong.ctp.CThostFtdcInvestorPositionField;
-import com.nabiki.wukong.ctp.TThostFtdcPosiDirectionType;
+import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.core.FrozenAccount;
 import com.nabiki.wukong.user.core.FrozenPositionDetail;
 import com.nabiki.wukong.user.core.User;
@@ -46,10 +47,10 @@ import java.util.*;
 public class ActiveUser {
     private final User user;
     private final Config config;
-    private final ActiveOrderManager orderMgr;
+    private final OrderProvider orderMgr;
     private final Map<UUID, ActiveOrder> orders = new HashMap<>();
 
-    public ActiveUser(User user, ActiveOrderManager orderMgr, Config cfg) {
+    public ActiveUser(User user, OrderProvider orderMgr, Config cfg) {
         this.user = user;
         this.config = cfg;
         this.orderMgr = orderMgr;

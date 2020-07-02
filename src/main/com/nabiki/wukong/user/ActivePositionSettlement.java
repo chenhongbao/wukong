@@ -29,8 +29,8 @@
 package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
-import com.nabiki.wukong.OP;
 import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.core.UserPositionDetail;
 
 import java.util.Collection;

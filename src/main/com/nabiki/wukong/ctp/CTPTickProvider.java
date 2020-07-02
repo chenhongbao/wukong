@@ -35,18 +35,20 @@ import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.md.CandleEngine;
 import com.nabiki.wukong.olap.FlowRouter;
 
-public class TickSPI extends CThostFtdcMdSpi {
+public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukong.api.TickProvider {
     private final Config config;
 
-    public TickSPI(Config cfg) {
+    public CTPTickProvider(Config cfg) {
         this.config = cfg;
     }
 
+    @Override
     @InTeam
     public void register(CandleEngine engine) {
 
     }
 
+    @Override
     @InTeam
     public void register(FlowRouter router) {
 

@@ -28,7 +28,7 @@
 
 package com.nabiki.wukong.cfg;
 
-import com.nabiki.wukong.EasyFile;
+import com.nabiki.wukong.tools.EasyFile;
 import org.junit.Assert;
 import org.junit.Test;
 

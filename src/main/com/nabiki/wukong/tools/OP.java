@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong;
+package com.nabiki.wukong.tools;
 
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;

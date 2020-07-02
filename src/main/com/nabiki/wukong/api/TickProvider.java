@@ -26,10 +26,16 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.ctp;
+package com.nabiki.wukong.api;
 
-public class TThostFtdcPosiDirectionType {
-    public static final char NET = '1';
-    public static final char LONG = '2';
-    public static final char SHORT = '3';
+import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.md.CandleEngine;
+import com.nabiki.wukong.olap.FlowRouter;
+
+public interface TickProvider {
+    @InTeam
+    void register(CandleEngine engine);
+
+    @InTeam
+    void register(FlowRouter router);
 }

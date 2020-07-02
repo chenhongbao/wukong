@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong;
+package com.nabiki.wukong.tools;
 
 import com.nabiki.wukong.annotation.OutTeam;
 
