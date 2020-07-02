@@ -29,17 +29,67 @@
 package com.nabiki.wukong.md.plain;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
+import com.nabiki.wukong.OP;
 
 public class CandleProgress {
+    private final Candle candle = new Candle();
+
+    private int lastVolume = 0, lastVolumeUpdated = 0;
+    private double lastClosePrice = 0.0D;
+    private boolean popped = true;
+
+    public CandleProgress() {}
+
     public void update(CThostFtdcDepthMarketDataField md) {
+        if (this.lastVolume == 0)
+            this.lastVolume = md.Volume;
+        synchronized (this.candle) {
+            if (this.popped) {
+                this.candle.InstrumentID = md.InstrumentID;
+                this.candle.ActionDay = OP.getToday("yyyyMMdd");
+                this.candle.TradingDay = md.TradingDay;
+                this.candle.OpenPrice
+                        = this.candle.HighestPrice
+                        = this.candle.LowestPrice
+                        = md.LastPrice;
+                this.popped = false;
+            } else {
 
+                this.candle.HighestPrice = Math.max(this.candle.HighestPrice,
+                        md.LastPrice);
+                this.candle.LowestPrice = Math.min(this.candle.LowestPrice,
+                        md.LastPrice);
+            }
+            this.candle.Volume = md.Volume - this.lastVolume;
+            this.candle.OpenInterest = md.OpenInterest;
+            this.candle.ClosePrice = md.LastPrice;
+            this.candle.UpdateTime = md.UpdateTime;
+        }
+        this.lastClosePrice = md.LastPrice;
+        this.lastVolumeUpdated = md.Volume;
     }
 
-    public Candle peak() {
-        return null;
+    public Candle peak(String tradingDay) {
+        synchronized (this.candle) {
+            if (this.popped) {
+                // Not updated since last pop.
+                this.candle.TradingDay = tradingDay;
+                this.candle.ActionDay = OP.getToday("yyyyMMdd");
+                this.candle.UpdateTime = OP.getTime("HH:mm:ss");
+                this.candle.OpenPrice
+                        = this.candle.ClosePrice
+                        = this.candle.HighestPrice
+                        = this.candle.LowestPrice
+                        = this.lastClosePrice;
+            }
+            return OP.deepCopy(this.candle);
+        }
     }
 
-    public Candle pop() {
-        return null;
+    public Candle pop(String tradingDay) {
+        var r = peak(tradingDay);
+        this.lastVolume = this.lastVolumeUpdated;
+        this.lastVolumeUpdated = 0;
+        return r;
     }
 }

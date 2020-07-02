@@ -62,19 +62,19 @@ public class SingleCandle {
         }
     }
 
-    Candle peak(Duration du) {
+    Candle peak(Duration du, String tradingDay) {
         synchronized (this.progress) {
             if (this.progress.containsKey(du))
-                return this.progress.get(du).peak();
+                return this.progress.get(du).peak(tradingDay);
             else
                 throw new IllegalArgumentException("key not found");
         }
     }
 
-    Candle pop(Duration du) {
+    Candle pop(Duration du, String tradingDay) {
         synchronized (this.progress) {
             if (this.progress.containsKey(du))
-                return this.progress.get(du).pop();
+                return this.progress.get(du).pop(tradingDay);
             else
                 throw new IllegalArgumentException("key not found");
         }

@@ -28,5 +28,18 @@
 
 package com.nabiki.wukong.md.plain;
 
-public class Candle {
+public class Candle implements java.io.Serializable {
+    public String InstrumentID;
+    public double OpenPrice;
+    public double HighestPrice;
+    public double LowestPrice;
+    public double ClosePrice;
+    public double AveragePrice;
+    public int Volume;
+    public double OpenInterest;
+    public String TradingDay;
+    public String ActionDay;
+    public String UpdateTime;
+
+    public Candle() {}
 }

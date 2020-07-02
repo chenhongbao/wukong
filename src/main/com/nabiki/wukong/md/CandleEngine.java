@@ -157,7 +157,7 @@ public class CandleEngine extends TimerTask {
             var r = new HashSet<Candle>();
             synchronized (this.candles) {
                 for (var c : this.candles.values())
-                    r.add(c.peak(du));
+                    r.add(c.peak(du, config.getTradingDay()));
             }
             return r;
         }
@@ -168,7 +168,7 @@ public class CandleEngine extends TimerTask {
             var r = new HashSet<Candle>();
             synchronized (this.candles) {
                 for (var c : this.candles.values())
-                    r.add(c.pop(du));
+                    r.add(c.pop(du, config.getTradingDay()));
             }
             return r;
         }

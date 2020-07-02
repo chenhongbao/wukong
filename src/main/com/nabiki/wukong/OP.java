@@ -36,7 +36,9 @@ import com.nabiki.wukong.annotation.OutTeam;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -172,6 +174,7 @@ public class OP {
      *
      * @return integer ID
      */
+    @OutTeam
     public static int getIncrementID() {
         return incID.incrementAndGet();
     }
@@ -196,6 +199,7 @@ public class OP {
      * @param errCode error code if it has
      * @return log string
      */
+    @OutTeam
     public static String formatLog(String hint, String orderRef, String errMsg,
                              Integer errCode) {
         return String.format("%s[%s]%s(%d)", hint, orderRef, errMsg, errCode);
@@ -208,11 +212,40 @@ public class OP {
      * @param instrID instrument ID
      * @return product ID
      */
+    @OutTeam
     public static String getProductID(String instrID) {
         var m = productPattern.matcher(instrID);
         if (m.find())
             return instrID.substring(m.start(), m.end()).toLowerCase();
         else
             return null;
+    }
+
+    /**
+     * Get today's string representation of the specified pattern. The pattern
+     * follows the convention of {@link DateTimeFormatter}.
+     *
+     * @param pattern pattern
+     * @return today's string representation
+     */
+    @OutTeam
+    public static String getToday(String pattern) {
+        if (pattern == null || pattern.trim().length() == 0)
+            pattern = "yyyyMMdd";
+        return LocalDate.now().format(DateTimeFormatter.ofPattern(pattern));
+    }
+
+    /**
+     * Get now' time representation of the specified pattern. The pattern
+     * follows the convention of {@link DateTimeFormatter}.
+     *
+     * @param pattern pattern
+     * @return today's string representation
+     */
+    @OutTeam
+    public static String getTime(String pattern) {
+        if (pattern == null || pattern.trim().length() == 0)
+            pattern = "HH:mm:ss";
+        return LocalTime.now().format(DateTimeFormatter.ofPattern(pattern));
     }
 }
