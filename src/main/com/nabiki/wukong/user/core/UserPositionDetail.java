@@ -46,8 +46,15 @@ public class UserPositionDetail {
         this.total = total;
     }
 
-    public void closeShare(CThostFtdcInvestorPositionDetailField share,
-                           long tradeCnt) {
+    /**
+     * Close frozen position. The method updates the fields in original position
+     * mainly the closeXXXX info and margin.
+     *
+     * @param share close info for 1 volume
+     * @param tradeCnt closed volume
+     */
+    public void closePosition(CThostFtdcInvestorPositionDetailField share,
+                              long tradeCnt) {
         this.total.CloseAmount += share.CloseAmount * tradeCnt;
         this.total.CloseProfitByDate += share.CloseProfitByDate * tradeCnt;
         this.total.CloseProfitByTrade += share.CloseProfitByTrade * tradeCnt;
@@ -92,7 +99,7 @@ public class UserPositionDetail {
     double getFrozenCommission() {
         double frz = 0.0D;
         for (var c : this.frozenPD)
-            frz += c.getFrozenShareCount() * c.getFrozenShareAcc().FrozenCommission;
+            frz += c.getFrozenShareCount() * c.getSingleFrozen().FrozenCommission;
         return frz;
     }
 
@@ -154,7 +161,7 @@ public class UserPositionDetail {
      * @param frzPD new frozen position
      */
     @InTeam
-    public void addFrozenPD(FrozenPositionDetail frzPD) {
+    public void addFrozenPosition(FrozenPositionDetail frzPD) {
         this.frozenPD.add(frzPD);
     }
 }

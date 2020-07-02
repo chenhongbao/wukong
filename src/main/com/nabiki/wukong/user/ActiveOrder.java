@@ -29,13 +29,16 @@
 package com.nabiki.wukong.user;
 
 import com.nabiki.ctp4j.jni.flag.TThostFtdcCombOffsetFlagType;
-import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorCode;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcOrderStatusType;
-import com.nabiki.ctp4j.jni.struct.*;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.wukong.annotation.InTeam;
 import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.cfg.Config;
+import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.core.*;
 
@@ -90,7 +93,7 @@ public class ActiveOrder {
         return this.action;
     }
 
-    Map<String, FrozenPositionDetail> getFrozenPD() {
+    Map<String, FrozenPositionDetail> getFrozenPosition() {
         return this.frozenPD;
     }
 
@@ -99,28 +102,31 @@ public class ActiveOrder {
     }
 
     void execOrder() {
-        if (this.order == null || this.config == null)
-            throw new NullPointerException("parameter null");
+        var instrInfo = this.config.getInstrInfo(this.order.InstrumentID);
+        Objects.requireNonNull(instrInfo, "instr info null");
         if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN)
-            insertOpen();
+            insertOpen(this.order, instrInfo);
         else
-            insertClose();
+            insertClose(this.order, instrInfo);
     }
 
-    private void insertOpen() {
-        this.frozenAccount = getOpenFrozen(this.order);
+    private void insertOpen(CThostFtdcInputOrderField order,
+                            InstrumentInfo instrInfo) {
+        this.frozenAccount = this.userAccount.getOpenFrozen(this.order, instrInfo);
         if (this.frozenAccount == null) {
             this.retCode = TThostFtdcErrorCode.INSUFFICIENT_MONEY;
         } else {
-            this.retCode = this.orderMgr.sendDetailOrder(this.order, this);
+            this.retCode = this.orderMgr.sendDetailOrder(order, this);
             if (this.retCode == 0)
                 // Apply frozen account to parent account.
-                this.userAccount.addFrozenAccount(this.frozenAccount);
+                this.frozenAccount.setFrozen();
         }
     }
 
-    private void insertClose() {
-        var pds = getCloseFrozen(this.order);
+    private void insertClose(CThostFtdcInputOrderField order,
+                             InstrumentInfo instrInfo) {
+        var pds = this.userPos.peakCloseFrozen(order, instrInfo,
+                this.config.getTradingDay());
         if (pds == null || pds.size() == 0) {
             this.retCode = TThostFtdcErrorCode.OVER_CLOSE_POSITION;
             return;
@@ -138,7 +144,7 @@ public class ActiveOrder {
             refs.add(ref);
             if (x == 0) {
                 // Apply frozen position to parent position.
-                p.getParent().addFrozenPD(p);
+                p.setFrozen();
             } else {
                 this.retCode = x;
                 break;
@@ -167,101 +173,6 @@ public class ActiveOrder {
     @InTeam
     public Integer getRetCode() {
         return this.retCode;
-    }
-
-    private FrozenAccount getOpenFrozen(CThostFtdcInputOrderField order) {
-        var instrInfo = this.config.getInstrInfo(order.InstrumentID);
-        Objects.requireNonNull(instrInfo, "instr info null");
-        var comm = instrInfo.commission;
-        var margin = instrInfo.margin;
-        var instr = instrInfo.instrument;
-        Objects.requireNonNull(instr, "instrument null");
-        Objects.requireNonNull(margin, "margin null");
-        Objects.requireNonNull(comm, "commission null");
-        // Calculate commission, cash.
-        var c = new CThostFtdcTradingAccountField();
-        if (order.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
-            if (margin.LongMarginRatioByMoney > 0)
-                c.FrozenCash = order.LimitPrice * instr.VolumeMultiple
-                        * margin.LongMarginRatioByMoney;
-            else
-                c.FrozenCash = margin.LongMarginRatioByVolume;
-        } else {
-            if (margin.ShortMarginRatioByMoney > 0)
-                c.FrozenCash = order.LimitPrice * instr.VolumeMultiple
-                        * margin.ShortMarginRatioByMoney;
-            else
-                c.FrozenCash = margin.ShortMarginRatioByVolume;
-        }
-        if (comm.OpenRatioByMoney > 0)
-            c.FrozenCommission = order.LimitPrice * instr.VolumeMultiple
-                    * comm.OpenRatioByMoney;
-        else
-            c.FrozenCommission = comm.OpenRatioByVolume;
-        // Check if available money is enough.
-        var needMoney = c.FrozenCash + c.FrozenCommission;
-        var account = this.userAccount.getParent().getTradingAccount();
-        if (account.Available < needMoney)
-            return null;
-        else
-            return new FrozenAccount(c, order.VolumeTotalOriginal);
-    }
-
-    private List<FrozenPositionDetail> getCloseFrozen(
-            CThostFtdcInputOrderField order) {
-        // Get position details.
-        var avail = this.userPos.getUserPD(order.InstrumentID);
-        Objects.requireNonNull(avail, "user position null");
-        // Get instr info.
-        var instrInfo = this.config.getInstrInfo(order.InstrumentID);
-        Objects.requireNonNull(instrInfo, "instr info null");
-        var comm = instrInfo.commission;
-        var instr = instrInfo.instrument;
-        Objects.requireNonNull(instr, "instrument null");
-        Objects.requireNonNull(comm, "commission null");
-        // Trading day not null.
-        Objects.requireNonNull(this.config.getTradingDay(),
-                "trading day null");
-        // Calculate frozen position detail.
-        int volume = order.VolumeTotalOriginal;
-        var r = new LinkedList<FrozenPositionDetail>();
-        for (var a : avail) {
-            long vol = Math.min(a.getAvailableVolume(), volume);
-            // Calculate shares.
-            // No need to calculate close profits and amount. They will be updated
-            // on return trade.
-            var sharePos = a.getDeepCopyTotal();
-            sharePos.ExchMargin /= 1.0D * sharePos.Volume;
-            sharePos.Margin /= 1.0D * sharePos.Volume;
-            sharePos.CloseVolume = 1;
-            // Commission.
-            var shareCash = new CThostFtdcTradingAccountField();
-            if (sharePos.TradingDay.compareTo(this.config.getTradingDay()) == 0) {
-                // Today position.
-                if (comm.CloseTodayRatioByMoney > 0)
-                    shareCash.FrozenCommission = order.LimitPrice
-                            * instr.VolumeMultiple * comm.CloseTodayRatioByMoney;
-                else
-                    shareCash.FrozenCommission = comm.CloseTodayRatioByVolume;
-            } else {
-                // YD position.
-                if (comm.CloseRatioByMoney > 0)
-                    shareCash.FrozenCommission = order.LimitPrice
-                            * instr.VolumeMultiple * comm.CloseRatioByMoney;
-                else
-                    shareCash.FrozenCommission = comm.CloseRatioByVolume;
-            }
-            // Keep frozen position.
-            var frz = new FrozenPositionDetail(a, sharePos, shareCash, vol);
-            r.add(frz);
-            // Reduce volume to zero.
-            if ((volume -= vol) <= 0)
-                break;
-        }
-        if (volume > 0)
-            return null; // Failed to ensure position to close.
-        else
-            return r;
     }
 
     private CThostFtdcInputOrderField toCloseOrder(FrozenPositionDetail pd) {
@@ -333,8 +244,7 @@ public class ActiveOrder {
     public void updateTrade(CThostFtdcTradeField trade) {
         if (trade == null)
             throw new NullPointerException("return trade null");
-        var commissionShare = toCommissionShare(trade);
-        var volume = trade.Volume;
+        var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
         if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
             // Open.
             if (this.frozenAccount == null) {
@@ -343,10 +253,11 @@ public class ActiveOrder {
                                 trade.OrderRef, null, null));
                 return;
             }
-            // Update frozen cash, user cash and user position.
-            this.frozenAccount.openShare(volume);
-            this.userPos.getUserPD(trade.InstrumentID).add(toUserPosition(trade));
-            this.userAccount.addShareCommission(commissionShare, volume);
+            var depth = this.config.getDepthMarketData(trade.InstrumentID);
+            Objects.requireNonNull(depth, "depth market data null");
+            // Update frozen cash and user position.
+            this.frozenAccount.updateOpenTrade(trade, instrInfo);
+            this.userPos.updateOpenTrade(trade, instrInfo, depth.PreSettlementPrice);
         } else {
             // Close.
             if (this.frozenPD == null || this.frozenPD.size() == 0) {
@@ -369,135 +280,9 @@ public class ActiveOrder {
                                 trade.OrderRef, null, null));
                 return;
             }
-            var share = toPositionShare(p.getFrozenSharePD(), trade);
             // Check the frozen position OK, here won't throw exception.
-            p.closeShare(trade.Volume);
-            p.getParent().closeShare(share, trade.Volume);
-            this.userAccount.addShareCommission(commissionShare, trade.Volume);
+            p.updateCloseTrade(trade, instrInfo);
+            this.userAccount.addShareCommission(trade, instrInfo);
         }
-    }
-
-    private CThostFtdcInvestorPositionDetailField toPositionShare(
-            CThostFtdcInvestorPositionDetailField p, CThostFtdcTradeField trade) {
-        var r = OP.deepCopy(p);
-        Objects.requireNonNull(r, "failed deep copy");
-        var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
-        Objects.requireNonNull(instrInfo, "instr info null");
-        Objects.requireNonNull(instrInfo.instrument, "instrument null");
-        // Calculate position detail.
-        r.CloseAmount = trade.Price * instrInfo.instrument.VolumeMultiple;
-        double token;
-        if (p.Direction == TThostFtdcDirectionType.DIRECTION_BUY)
-            token = 1.0D;   // Long position.
-        else
-            token = -1.0D;  // Short position.
-        r.CloseProfitByTrade = token * (trade.Price - p.OpenPrice)
-                * instrInfo.instrument.VolumeMultiple;
-        if (p.TradingDay.compareTo(trade.TradingDay) == 0)
-            // Today's position.
-            r.CloseProfitByDate = r.CloseProfitByTrade;
-        else
-            // History position.
-            r.CloseProfitByDate = token * (trade.Price - p.LastSettlementPrice)
-                    * instrInfo.instrument.VolumeMultiple;
-        return r;
-    }
-
-    private UserPositionDetail toUserPosition(CThostFtdcTradeField trade) {
-        var d = new CThostFtdcInvestorPositionDetailField();
-        d.InvestorID = trade.InvestorID;
-        d.BrokerID = trade.BrokerID;
-        d.Volume = trade.Volume;
-        d.OpenPrice = trade.Price;
-        d.Direction = trade.Direction;
-        d.ExchangeID = trade.ExchangeID;
-        d.HedgeFlag = trade.HedgeFlag;
-        d.InstrumentID = trade.InstrumentID;
-        d.OpenDate = trade.TradeDate;
-        d.TradeID = trade.TradeID;
-        d.TradeType = trade.TradeType;
-        d.TradingDay = trade.TradingDay;
-        d.InvestUnitID = trade.InvestUnitID;
-        d.SettlementID = trade.SettlementID;
-        // Calculate margin.
-        var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
-        var instr = instrInfo.instrument;
-        var margin = instrInfo.margin;
-        var comm = instrInfo.commission;
-        Objects.requireNonNull(instrInfo, "instr info null");
-        Objects.requireNonNull(instr, "instrument null");
-        Objects.requireNonNull(margin, "margin null");
-        Objects.requireNonNull(comm, "commission null");
-        // Decide margin rates.
-        if (d.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
-            d.MarginRateByMoney = margin.LongMarginRatioByMoney;
-            d.MarginRateByVolume = margin.LongMarginRatioByVolume;
-        } else {
-            d.MarginRateByMoney = margin.ShortMarginRatioByMoney;
-            d.MarginRateByVolume = margin.ShortMarginRatioByVolume;
-        }
-        // Calculate margin.
-        var depth = this.config.getDepthMarketData(trade.InstrumentID);
-        if (depth != null) {
-            d.LastSettlementPrice = depth.PreSettlementPrice;
-            if (d.MarginRateByMoney > 0)
-                d.Margin = d.Volume * instr.VolumeMultiple
-                        * d.LastSettlementPrice * d.MarginRateByMoney;
-            else
-                d.Margin = d.Volume * d.MarginRateByVolume;
-        }
-        // Default values.
-        d.CloseVolume = 0;
-        d.CloseAmount = 0.0D;
-        d.PositionProfitByDate = 0.0D;
-        d.PositionProfitByTrade = 0.0D;
-        d.CloseProfitByDate = 0.0D;
-        d.CloseProfitByTrade = 0.0D;
-        d.SettlementPrice = 0.0D;
-        d.TimeFirstVolume = 0;
-        d.CombInstrumentID = "";
-        return new UserPositionDetail(d);
-    }
-
-    // Only commission.
-    private CThostFtdcTradingAccountField toCommissionShare(
-            CThostFtdcTradeField trade) {
-        var r = new CThostFtdcTradingAccountField();
-        r.Commission = 0;
-        var instrInfo = this.config.getInstrInfo(trade.InstrumentID);
-        try {
-            double commission;
-            var comm = instrInfo.commission;
-            var instr = instrInfo.instrument;
-            if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
-                if (comm.OpenRatioByMoney > 0)
-                    commission = comm.OpenRatioByMoney * instr.VolumeMultiple
-                            * trade.Price * trade.Volume;
-                else
-                    commission = comm.OpenRatioByVolume * trade.Volume;
-            } else {
-                if (trade.OffsetFlag ==
-                        TThostFtdcCombOffsetFlagType.OFFSET_CLOSE_TODAY) {
-                    if (comm.CloseRatioByMoney > 0)
-                        commission = comm.CloseTodayRatioByMoney
-                                * instr.VolumeMultiple * trade.Price * trade.Volume;
-                    else
-                        commission = comm.CloseTodayRatioByVolume * trade.Volume;
-                } else {
-                    // close = close yesterday
-                    if (comm.CloseRatioByMoney > 0)
-                        commission = comm.CloseRatioByMoney
-                                * instr.VolumeMultiple * trade.Price * trade.Volume;
-                    else
-                        commission = comm.CloseRatioByVolume * trade.Volume;
-                }
-            }
-            r.Commission = commission;
-        } catch (NullPointerException e) {
-            this.config.getLogger().warning(
-                    OP.formatLog("failed compute commission", trade.OrderRef,
-                            null, null));
-        }
-        return r;
     }
 }

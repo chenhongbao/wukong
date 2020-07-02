@@ -47,7 +47,7 @@ public class OrderMapper {
     private final Map<String, CThostFtdcInputOrderField>
             detRef2Det = new HashMap<>();   // Detail ref -> detail order
 
-    OrderMapper() {
+    public OrderMapper() {
     }
 
     /**

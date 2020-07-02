@@ -28,30 +28,43 @@
 
 package com.nabiki.wukong.user.core;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.user.flag.AssetState;
 
 public class FrozenAccount {
     private final CThostFtdcTradingAccountField frozenShare;
     private final long totalShareCount;
+    private final UserAccount parent;
 
     private AssetState state = AssetState.ONGOING;
     private long tradedShareCount = 0;
 
-    public FrozenAccount(CThostFtdcTradingAccountField share, long shareCount) {
+    public FrozenAccount(UserAccount parent, CThostFtdcTradingAccountField share, long shareCount) {
+        this.parent = parent;
         this.frozenShare = share;
         this.totalShareCount = shareCount;
     }
 
-    double getFrozenShareCount() {
+    /**
+     * Add this frozen account to its parent's frozen list. Then this account is
+     * calculated as frozen.
+     */
+    @InTeam
+    public void setFrozen() {
+        this.parent.addFrozenAccount(this);
+    }
+
+    double getFrozenVolume() {
         if (this.state == AssetState.CANCELED)
             return 0;
         else
             return this.totalShareCount - this.tradedShareCount;
     }
 
-    CThostFtdcTradingAccountField getFrozenShare() {
+    CThostFtdcTradingAccountField getSingleFrozen() {
         return this.frozenShare;
     }
 
@@ -66,14 +79,17 @@ public class FrozenAccount {
     /**
      * An open order is traded(or partly) whose frozen account is also decreased.
      *
-     * @param tradeCnt traded volume
+     * @param trade trade response
+     * @param instrInfo instrument info
      */
     @InTeam
-    public void openShare(long tradeCnt) {
-        if (tradeCnt < 0)
+    public void updateOpenTrade(CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
+        if (trade.Volume < 0)
             throw new IllegalArgumentException("negative traded share count");
-        if (getFrozenShareCount() < tradeCnt)
+        if (getFrozenVolume() < trade.Volume)
             throw new IllegalStateException("not enough frozen shares");
-        this.tradedShareCount -= tradeCnt;
+        this.tradedShareCount -= trade.Volume;
+        // Update parent.
+        this.parent.addShareCommission(trade, instrInfo);
     }
 }

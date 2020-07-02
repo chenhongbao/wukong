@@ -28,11 +28,16 @@
 
 package com.nabiki.wukong.user.core;
 
+import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.flag.AssetState;
+
+import java.util.Objects;
 
 public class FrozenPositionDetail {
     // The original position that own this frozen position.
@@ -78,15 +83,19 @@ public class FrozenPositionDetail {
      * order is canceled, all its frozen volume is released.
      * </p>
      *
-     * @param tradeCnt traded volume of a close order
+     * @param trade trade response
+     * @param instrInfo instrument info
      */
     @InTeam
-    public void closeShare(long tradeCnt) {
-        if (tradeCnt < 0)
+    public void updateCloseTrade(CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
+        if (trade.Volume < 0)
             throw new IllegalArgumentException("negative traded share count");
-        if (getFrozenShareCount() < tradeCnt)
+        if (getFrozenShareCount() < trade.Volume)
             throw new IllegalStateException("not enough frozen shares");
-        this.tradedShareCount -= tradeCnt;
+        this.tradedShareCount -= trade.Volume;
+        // Update parent.
+        var share = toPositionShare(this.frozenSharePD, trade, instrInfo);
+        this.parent.closePosition(share, trade.Volume);
     }
 
     /**
@@ -95,16 +104,6 @@ public class FrozenPositionDetail {
     @InTeam
     public void cancel() {
         this.state = AssetState.CANCELED;
-    }
-
-    /**
-     * Get the original position which this frozen position belongs to.
-     *
-     * @return the position which this frozen position belongs to
-     */
-    @InTeam
-    public UserPositionDetail getParent() {
-        return this.parent;
     }
 
     /**
@@ -119,7 +118,42 @@ public class FrozenPositionDetail {
         return OP.deepCopy(this.frozenSharePD);
     }
 
-    CThostFtdcTradingAccountField getFrozenShareAcc() {
+    /**
+     * Add this frozen position detail to its parent's frozen list. Then this
+     * position is calculated as frozen.
+     */
+    @InTeam
+    public void setFrozen() {
+        this.parent.addFrozenPosition(this);
+    }
+
+    CThostFtdcTradingAccountField getSingleFrozen() {
         return OP.deepCopy(this.frozenShareCash);
+    }
+
+    private CThostFtdcInvestorPositionDetailField toPositionShare(
+            CThostFtdcInvestorPositionDetailField p, CThostFtdcTradeField trade,
+            InstrumentInfo instrInfo) {
+        var r = OP.deepCopy(p);
+        Objects.requireNonNull(r, "failed deep copy");
+        Objects.requireNonNull(instrInfo, "instr info null");
+        Objects.requireNonNull(instrInfo.instrument, "instrument null");
+        // Calculate position detail.
+        r.CloseAmount = trade.Price * instrInfo.instrument.VolumeMultiple;
+        double token;
+        if (p.Direction == TThostFtdcDirectionType.DIRECTION_BUY)
+            token = 1.0D;   // Long position.
+        else
+            token = -1.0D;  // Short position.
+        r.CloseProfitByTrade = token * (trade.Price - p.OpenPrice)
+                * instrInfo.instrument.VolumeMultiple;
+        if (p.TradingDay.compareTo(trade.TradingDay) == 0)
+            // Today's position.
+            r.CloseProfitByDate = r.CloseProfitByTrade;
+        else
+            // History position.
+            r.CloseProfitByDate = token * (trade.Price - p.LastSettlementPrice)
+                    * instrInfo.instrument.VolumeMultiple;
+        return r;
     }
 }

@@ -28,13 +28,15 @@
 
 package com.nabiki.wukong.user.core;
 
+import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionDetailField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class UserPosition {
     private final User parent;
@@ -80,7 +82,7 @@ public class UserPosition {
 
     @InTeam
     public CThostFtdcInvestorPositionDetailField getCurrPD() {
-        var r= new CThostFtdcInvestorPositionDetailField();
+        var r = new CThostFtdcInvestorPositionDetailField();
         r.Margin = 0.;
         r.CloseProfitByTrade = 0.;
         r.CloseProfitByDate = 0;
@@ -96,5 +98,134 @@ public class UserPosition {
                 r.PositionProfitByTrade += p.PositionProfitByTrade;
             }
         return r;
+    }
+
+    @InTeam
+    public void updateOpenTrade(CThostFtdcTradeField trade,
+                                InstrumentInfo instrInfo,
+                                double preSettlementPrice) {
+        getUserPD(trade.InstrumentID).add(toUserPosition(trade, instrInfo,
+                preSettlementPrice));
+    }
+
+    /**
+     * Calculate the frozen position. But the frozen position is not written to
+     * the user position detail. Only after the request is sent successfully, the
+     * frozen position is added to the frozen list.
+     *
+     * @param order input order, must be close order
+     * @param instrInfo instrument info
+     * @param tradingDay trading day
+     * @return list of frozen position detail if the order is sent successfully
+     */
+    @InTeam
+    public List<FrozenPositionDetail> peakCloseFrozen(
+            CThostFtdcInputOrderField order, InstrumentInfo instrInfo,
+            String tradingDay) {
+        // Get position details.
+        var avail = getUserPD(order.InstrumentID);
+        Objects.requireNonNull(avail, "user position null");
+        // Get instr info.
+        Objects.requireNonNull(instrInfo, "instr info null");
+        var comm = instrInfo.commission;
+        var instr = instrInfo.instrument;
+        Objects.requireNonNull(instr, "instrument null");
+        Objects.requireNonNull(comm, "commission null");
+        // Trading day not null.
+        Objects.requireNonNull(tradingDay, "trading day null");
+        // Calculate frozen position detail.
+        int volume = order.VolumeTotalOriginal;
+        var r = new LinkedList<FrozenPositionDetail>();
+        for (var a : avail) {
+            long vol = Math.min(a.getAvailableVolume(), volume);
+            // Calculate shares.
+            // No need to calculate close profits and amount. They will be updated
+            // on return trade.
+            var sharePos = a.getDeepCopyTotal();
+            sharePos.ExchMargin /= 1.0D * sharePos.Volume;
+            sharePos.Margin /= 1.0D * sharePos.Volume;
+            sharePos.CloseVolume = 1;
+            // Commission.
+            var shareCash = new CThostFtdcTradingAccountField();
+            if (sharePos.TradingDay.compareTo(tradingDay) == 0) {
+                // Today position.
+                if (comm.CloseTodayRatioByMoney > 0)
+                    shareCash.FrozenCommission = order.LimitPrice
+                            * instr.VolumeMultiple * comm.CloseTodayRatioByMoney;
+                else
+                    shareCash.FrozenCommission = comm.CloseTodayRatioByVolume;
+            } else {
+                // YD position.
+                if (comm.CloseRatioByMoney > 0)
+                    shareCash.FrozenCommission = order.LimitPrice
+                            * instr.VolumeMultiple * comm.CloseRatioByMoney;
+                else
+                    shareCash.FrozenCommission = comm.CloseRatioByVolume;
+            }
+            // Keep frozen position.
+            var frz = new FrozenPositionDetail(a, sharePos, shareCash, vol);
+            r.add(frz);
+            // Reduce volume to zero.
+            if ((volume -= vol) <= 0)
+                break;
+        }
+        if (volume > 0)
+            return null; // Failed to ensure position to close.
+        else
+            return r;
+    }
+
+    private UserPositionDetail toUserPosition(CThostFtdcTradeField trade,
+                                              InstrumentInfo instrInfo,
+                                              double preSettlementPrice) {
+        var d = new CThostFtdcInvestorPositionDetailField();
+        d.InvestorID = trade.InvestorID;
+        d.BrokerID = trade.BrokerID;
+        d.Volume = trade.Volume;
+        d.OpenPrice = trade.Price;
+        d.Direction = trade.Direction;
+        d.ExchangeID = trade.ExchangeID;
+        d.HedgeFlag = trade.HedgeFlag;
+        d.InstrumentID = trade.InstrumentID;
+        d.OpenDate = trade.TradeDate;
+        d.TradeID = trade.TradeID;
+        d.TradeType = trade.TradeType;
+        d.TradingDay = trade.TradingDay;
+        d.InvestUnitID = trade.InvestUnitID;
+        d.SettlementID = trade.SettlementID;
+        // Calculate margin.
+        var instr = instrInfo.instrument;
+        var margin = instrInfo.margin;
+        var comm = instrInfo.commission;
+        Objects.requireNonNull(instrInfo, "instr info null");
+        Objects.requireNonNull(instr, "instrument null");
+        Objects.requireNonNull(margin, "margin null");
+        Objects.requireNonNull(comm, "commission null");
+        // Decide margin rates.
+        if (d.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
+            d.MarginRateByMoney = margin.LongMarginRatioByMoney;
+            d.MarginRateByVolume = margin.LongMarginRatioByVolume;
+        } else {
+            d.MarginRateByMoney = margin.ShortMarginRatioByMoney;
+            d.MarginRateByVolume = margin.ShortMarginRatioByVolume;
+        }
+        // Calculate margin.
+        d.LastSettlementPrice = preSettlementPrice;
+        if (d.MarginRateByMoney > 0)
+            d.Margin = d.Volume * instr.VolumeMultiple
+                    * d.LastSettlementPrice * d.MarginRateByMoney;
+        else
+            d.Margin = d.Volume * d.MarginRateByVolume;
+        // Default values.
+        d.CloseVolume = 0;
+        d.CloseAmount = 0.0D;
+        d.PositionProfitByDate = 0.0D;
+        d.PositionProfitByTrade = 0.0D;
+        d.CloseProfitByDate = 0.0D;
+        d.CloseProfitByTrade = 0.0D;
+        d.SettlementPrice = 0.0D;
+        d.TimeFirstVolume = 0;
+        d.CombInstrumentID = "";
+        return new UserPositionDetail(d);
     }
 }

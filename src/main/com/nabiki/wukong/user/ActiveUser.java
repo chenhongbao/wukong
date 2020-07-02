@@ -104,7 +104,7 @@ public class ActiveUser {
     public Map<String, FrozenPositionDetail> getFrozenPositionDetail(UUID uuid) {
         var o = this.orders.get(uuid);
         if (o != null)
-            return o.getFrozenPD();
+            return o.getFrozenPosition();
         else
             return null;
     }

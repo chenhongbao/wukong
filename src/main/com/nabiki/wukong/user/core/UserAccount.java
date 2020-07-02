@@ -28,12 +28,18 @@
 
 package com.nabiki.wukong.user.core;
 
+import com.nabiki.ctp4j.jni.flag.TThostFtdcCombOffsetFlagType;
+import com.nabiki.ctp4j.jni.flag.TThostFtdcDirectionType;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.annotation.InTeam;
+import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.tools.OP;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 
 public class UserAccount {
     private final User parent;
@@ -63,14 +69,18 @@ public class UserAccount {
     /**
      * Add commission for traded order. The order can be open or close.
      *
-     * @param share the account having the commission for 1 traded volume
-     * @param tradeCnt traded volume
+     * @param trade the trade response
+     * @param instrInfo instrument info
      */
     @InTeam
-    public void addShareCommission(CThostFtdcTradingAccountField share, long tradeCnt) {
-        this.total.Commission += share.Commission * tradeCnt;
+    public void addShareCommission(CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
+        var share = toTradeCommission(trade, instrInfo);
+        this.total.Commission += share.Commission * trade.Volume;
     }
 
+    /**
+     * Cancel an open order and release all frozen cashes and commission.
+     */
     @InTeam
     public void cancel() {
         for (var acc : this.frozenAcc)
@@ -82,9 +92,9 @@ public class UserAccount {
         r.FrozenCash = 0;
         r.FrozenCommission = 0;
         for (var c : this.frozenAcc) {
-            r.FrozenCash += c.getFrozenShareCount() * c.getFrozenShare().FrozenCash;
-            r.FrozenCommission += c.getFrozenShareCount()
-                    * c.getFrozenShare().FrozenCommission;
+            r.FrozenCash += c.getFrozenVolume() * c.getSingleFrozen().FrozenCash;
+            r.FrozenCommission += c.getFrozenVolume()
+                    * c.getSingleFrozen().FrozenCommission;
         }
         return r;
     }
@@ -97,5 +107,79 @@ public class UserAccount {
     @InTeam
     public void addFrozenAccount(FrozenAccount frz) {
         this.frozenAcc.add(frz);
+    }
+
+    @InTeam
+    public FrozenAccount getOpenFrozen(CThostFtdcInputOrderField order,
+                                        InstrumentInfo instrInfo) {
+        Objects.requireNonNull(instrInfo, "instr info null");
+        var comm = instrInfo.commission;
+        var margin = instrInfo.margin;
+        var instr = instrInfo.instrument;
+        Objects.requireNonNull(instr, "instrument null");
+        Objects.requireNonNull(margin, "margin null");
+        Objects.requireNonNull(comm, "commission null");
+        // Calculate commission, cash.
+        var c = new CThostFtdcTradingAccountField();
+        if (order.Direction == TThostFtdcDirectionType.DIRECTION_BUY) {
+            if (margin.LongMarginRatioByMoney > 0)
+                c.FrozenCash = order.LimitPrice * instr.VolumeMultiple
+                        * margin.LongMarginRatioByMoney;
+            else
+                c.FrozenCash = margin.LongMarginRatioByVolume;
+        } else {
+            if (margin.ShortMarginRatioByMoney > 0)
+                c.FrozenCash = order.LimitPrice * instr.VolumeMultiple
+                        * margin.ShortMarginRatioByMoney;
+            else
+                c.FrozenCash = margin.ShortMarginRatioByVolume;
+        }
+        if (comm.OpenRatioByMoney > 0)
+            c.FrozenCommission = order.LimitPrice * instr.VolumeMultiple
+                    * comm.OpenRatioByMoney;
+        else
+            c.FrozenCommission = comm.OpenRatioByVolume;
+        // Check if available money is enough.
+        var needMoney = c.FrozenCash + c.FrozenCommission;
+        var account = this.parent.getTradingAccount();
+        if (account.Available < needMoney)
+            return null;
+        else
+            return new FrozenAccount(this, c, order.VolumeTotalOriginal);
+    }
+
+    // Only calculate commission.
+    private CThostFtdcTradingAccountField toTradeCommission(
+            CThostFtdcTradeField trade, InstrumentInfo instrInfo) {
+        Objects.requireNonNull(instrInfo, "instr info null");
+        var comm = instrInfo.commission;
+        var instr = instrInfo.instrument;
+        Objects.requireNonNull(comm, "commission null");
+        Objects.requireNonNull(instr, "instrument null");
+        var r = new CThostFtdcTradingAccountField();
+        if (trade.OffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN) {
+            if (comm.OpenRatioByMoney > 0)
+                r.Commission = comm.OpenRatioByMoney * instr.VolumeMultiple
+                        * trade.Price * trade.Volume;
+            else
+                r.Commission = comm.OpenRatioByVolume * trade.Volume;
+        } else {
+            if (trade.OffsetFlag ==
+                    TThostFtdcCombOffsetFlagType.OFFSET_CLOSE_TODAY) {
+                if (comm.CloseRatioByMoney > 0)
+                    r.Commission = comm.CloseTodayRatioByMoney
+                            * instr.VolumeMultiple * trade.Price * trade.Volume;
+                else
+                    r.Commission = comm.CloseTodayRatioByVolume * trade.Volume;
+            } else {
+                // close = close yesterday
+                if (comm.CloseRatioByMoney > 0)
+                    r.Commission = comm.CloseRatioByMoney
+                            * instr.VolumeMultiple * trade.Price * trade.Volume;
+                else
+                    r.Commission = comm.CloseRatioByVolume * trade.Volume;
+            }
+        }
+        return r;
     }
 }
