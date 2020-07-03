@@ -28,18 +28,117 @@
 
 package com.nabiki.wukong.sim;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.api.TickProvider;
 import com.nabiki.wukong.md.CandleEngine;
 import com.nabiki.wukong.olap.FlowRouter;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+/**
+ * Simple fake market data generator.
+ *
+ * TODO Provide a higher customizable fake market data generator.
+ */
 public class SimTickProvider implements TickProvider {
+    private final Set<FlowRouter> routers = new HashSet<>();
+    private final Set<CandleEngine> engines = new HashSet<>();
+    private final Thread daemon;
+
+    private boolean released = false;
+
+    public SimTickProvider() {
+        this.daemon = new Thread(new TickGenerator());
+    }
+
     @Override
     public void register(CandleEngine engine) {
-
+        synchronized (this.engines) {
+            this.engines.add(engine);
+        }
     }
 
     @Override
     public void register(FlowRouter router) {
+        synchronized (this.routers) {
+            this.routers.add(router);
+        }
+    }
 
+    @Override
+    public void subscribe(List<String> instr) {
+
+    }
+
+    @Override
+    public void initialize() {
+        this.released = false;
+        this.daemon.start();
+    }
+
+    @Override
+    public void release() {
+        this.released = true;
+        this.daemon.interrupt();
+        try {
+            this.daemon.join(1000);
+        } catch (InterruptedException e) {
+        }
+    }
+
+    @Override
+    public void login() {
+        // nothing
+    }
+
+    @Override
+    public void logout() {
+        // nothing
+    }
+
+    class TickGenerator implements Runnable {
+        @Override
+        public void run() {
+            // Fake market data.
+            var origin = new CThostFtdcDepthMarketDataField();
+            origin.InstrumentID = "x2009";
+            origin.AskVolume1 = 1352;
+            origin.AskPrice1 = 2100;
+            origin.BidVolume1 = 465;
+            origin.BidPrice1 = 2099;
+            origin.PreClosePrice = 2099;
+            origin.PreSettlementPrice = 2104;
+            // Market trade book.
+            var book = new SimBook(origin, 1.0D, 0.5D);
+            var rand = new Random(this.hashCode());
+            // Infinite loop.
+            while (!released) {
+                book.setBuyChance(rand.nextDouble());
+                int count = rand.nextInt(5000) + 1500;
+                // Change a setting per round.
+                while (--count > 0) {
+                    var md = book.refresh();
+                    // Route market data.
+                    synchronized (engines) {
+                        for (var e : engines)
+                            e.update(md);
+                    }
+                    synchronized (routers) {
+                        for (var r : routers)
+                            r.enqueue(md);
+                    }
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ignored) {
+                        // Possible caused by release. Break the loop and check the
+                        // mark.
+                        break;
+                    }
+                }
+            }
+        }
     }
 }

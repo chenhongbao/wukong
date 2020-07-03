@@ -34,6 +34,8 @@ import com.nabiki.wukong.active.ActiveOrder;
 import com.nabiki.wukong.api.OrderProvider;
 import com.nabiki.wukong.tools.OrderMapper;
 
+import java.util.List;
+
 /**
  * {@code SimOrderManager} provides simulation for order insertion and action.
  * The simulation account has an account ID with suffix {@code 'S'}. When the user
@@ -58,5 +60,30 @@ public class SimOrderProvider implements OrderProvider {
     @Override
     public int sendOrderAction(CThostFtdcInputOrderActionField action, ActiveOrder alive) {
         return 0;
+    }
+
+    @Override
+    public List<String> getInstruments() {
+        return null;
+    }
+
+    @Override
+    public void initialize() {
+
+    }
+
+    @Override
+    public void release() {
+
+    }
+
+    @Override
+    public void login() {
+
+    }
+
+    @Override
+    public void logout() {
+
     }
 }
