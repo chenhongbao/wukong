@@ -174,7 +174,7 @@ public class EasyFileTest {
             System.out.println(e.getMessage() + ", skip creation test");
         }
 
-        // Test loadConfig an existing directory.
+        // Test load an existing directory.
         try {
             var root = new EasyFile(rootPath, false);
 

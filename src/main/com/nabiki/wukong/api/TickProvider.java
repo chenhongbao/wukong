@@ -32,10 +32,22 @@ import com.nabiki.wukong.md.CandleEngine;
 import com.nabiki.wukong.olap.FlowRouter;
 import com.nabiki.wukong.tools.InTeam;
 
+import java.util.List;
+
 public interface TickProvider {
     @InTeam
     void register(CandleEngine engine);
 
     @InTeam
     void register(FlowRouter router);
+
+    void subscribe(List<String> instr);
+
+    void initialize();
+
+    void release();
+
+    void login();
+
+    void logout();
 }

@@ -64,7 +64,7 @@ public class ConfigLoader {
      * in the configuration file is corrupted or invalid
      */
     @InTeam
-    public static Config loadConfig() throws IOException {
+    public static Config load() throws IOException {
         synchronized (config) {
             // Clear old config.
             if (configLoaded.get())

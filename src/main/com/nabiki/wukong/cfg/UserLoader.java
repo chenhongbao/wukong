@@ -52,7 +52,7 @@ public class UserLoader {
      * @return collection of users
      */
     @InTeam
-    public static Collection<User> loadUser(Config cfg) {
+    public static Collection<User> load(Config cfg) {
         var r = new HashSet<User>();
         for (var dir : getUserDirs(cfg)) {
             var usr = loadUser(dir, cfg);

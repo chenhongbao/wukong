@@ -34,6 +34,8 @@ import com.nabiki.wukong.active.ActiveOrder;
 import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OrderMapper;
 
+import java.util.List;
+
 public interface OrderProvider {
     @InTeam
     OrderMapper getMapper();
@@ -42,4 +44,14 @@ public interface OrderProvider {
 
     int sendOrderAction(CThostFtdcInputOrderActionField action,
                         ActiveOrder alive);
+
+    List<String> getInstruments();
+
+    void initialize();
+
+    void release();
+
+    void login();
+
+    void logout();
 }

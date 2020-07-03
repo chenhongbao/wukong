@@ -29,48 +29,37 @@
 package com.nabiki.wukong.sim;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
+import com.nabiki.wukong.tools.OP;
 
 import java.io.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 import java.util.Random;
 
 public class SimBook {
-    private final String instrID;
-    private final Spread ask, bid;
-    private final Random rand;
-    private final CThostFtdcDepthMarketDataField md;
+    private final double priceTick;
+    private final Random rand = new Random(SimBook.class.hashCode());
+    private final CThostFtdcDepthMarketDataField md, book;
     private final DateTimeFormatter dayFormat = DateTimeFormatter.ofPattern("yyyyMMdd");
     private final DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     // Buy chance.
     private double buyChance = 0.5;
 
-    public SimBook(String instrID, Spread ask, Spread bid) {
-        if (ask.type != SpreadType.ASK || bid.type != SpreadType.BUY)
-            throw new IllegalArgumentException("wrong spread type");
-        if (ask.price <= bid.price)
-            throw new IllegalArgumentException("invalid prices");
-        if (ask.volume < 0 || bid.volume < 0)
-            throw new IllegalArgumentException("invalid volumes");
-
-        this.ask = ask;
-        this.bid = bid;
-        this.instrID = instrID;
-        this.rand = new Random(this.hashCode());
-        this.md = new CThostFtdcDepthMarketDataField();
-        this.md.InstrumentID = instrID;
-        this.md.Volume = 0;
-        this.md.OpenInterest = 0;
-        this.md.OpenPrice = this.ask.price;
-        this.md.PreSettlementPrice = Math.round(0.5D * (this.ask.price + this.bid.price));
-        this.md.PreClosePrice = Math.round(this.md.PreSettlementPrice * (1 + (0.5 - this.rand.nextDouble()) * 0.1));
+    public SimBook(CThostFtdcDepthMarketDataField origin, double priceTick,
+                   double buyChance) {
+        if (origin == null)
+            throw new NullPointerException("original market data null");
+        this.priceTick = priceTick;
+        this.buyChance = buyChance;
+        this.book = OP.deepCopy(origin);
+        this.md = OP.deepCopy(origin);
+        Objects.requireNonNull(this.book, "book depth null");
+        Objects.requireNonNull(this.md, "md depth null");
         this.md.HighestPrice = -Double.MAX_VALUE;
         this.md.LowerLimitPrice = Double.MAX_VALUE;
-        // Limit prices.
-        this.md.UpperLimitPrice = Math.round(this.md.PreSettlementPrice * 1.05);
-        this.md.LowerLimitPrice = Math.round(this.md.PreSettlementPrice * 0.95);
     }
 
     public void setBuyChance(double chance) {
@@ -92,42 +81,38 @@ public class SimBook {
         md.OpenInterest += Math.round(tradedVolume * 0.1 * this.rand.nextDouble());
 
         if (direction == SpreadType.ASK) {
-            if (this.ask.volume >= tradedVolume)
-                this.ask.volume -= tradedVolume;
+            if (this.md.AskVolume1 >= tradedVolume)
+                this.md.AskVolume1 -= tradedVolume;
             else {
-                 this.bid.price = this.ask.price;
-                 this.bid.volume = tradedVolume - this.ask.volume;
-
-                 this.ask.volume = nextRandomVolume(2000);
-                 this.ask.price = this.bid.price + 1.0D;
+                // Spread moves up.
+                 this.md.BidPrice1 = this.md.AskPrice1;
+                 this.md.BidVolume1 = tradedVolume - this.md.AskVolume1;
+                // Ask spread moves up by 1 price tick.
+                 this.md.AskVolume1 = nextRandomVolume(2000);
+                 this.md.AskPrice1 += this.priceTick;
             }
 
-            this.md.LastPrice = this.ask.price;
+            this.md.LastPrice = this.md.AskPrice1;
         } else {
-            if (this.bid.volume >= tradedVolume)
-                this.bid.volume -= tradedVolume;
+            if (this.md.BidVolume1 >= tradedVolume)
+                this.md.BidVolume1 -= tradedVolume;
             else {
-                this.ask.price = this.bid.price;
-                this.ask.volume = tradedVolume - this.bid.volume;
+                this.md.AskPrice1 = this.md.BidPrice1;
+                this.md.AskVolume1 = tradedVolume - this.md.BidVolume1;
 
-                this.bid.volume = nextRandomVolume(2000);
-                this.bid.price = this.bid.price - 1.0D;
+                this.md.BidVolume1 = nextRandomVolume(2000);
+                this.md.BidPrice1 -= this.priceTick;
             }
 
-            this.md.LastPrice = this.bid.price;
+            this.md.LastPrice = this.md.BidPrice1;
         }
 
         // Spread.
-        this.ask.volume += askAddedVolume;
-        this.bid.volume += bidAddedVolume;
+        this.md.AskVolume1 += askAddedVolume;
+        this.md.BidVolume1 += bidAddedVolume;
         // Can't less than zero.
-        this.ask.volume = Math.max(this.ask.volume, 0);
-        this.bid.volume = Math.max(this.bid.volume, 0);
-
-        this.md.AskPrice1 = this.ask.price;
-        this.md.AskVolume1 = this.ask.volume;
-        this.md.BidPrice1 = this.bid.price;
-        this.md.BidVolume1 = this.bid.volume;
+        this.md.AskVolume1 = Math.max(this.md.AskVolume1, 0);
+        this.md.BidVolume1 = Math.max(this.md.BidVolume1, 0);
 
         // Day and time.
         this.md.TradingDay = getTradingDay();
@@ -135,7 +120,7 @@ public class SimBook {
         this.md.UpdateTime = LocalTime.now().format(this.timeFormat);
         this.md.UpdateMillisec = (int)(System.currentTimeMillis() % 1000);
 
-        // H/L prices.
+        // Highest/lowest prices.
         this.md.HighestPrice = Math.max(this.md.LastPrice, this.md.HighestPrice);
         this.md.LowestPrice = Math.min(this.md.LastPrice, this.md.LowestPrice);
 

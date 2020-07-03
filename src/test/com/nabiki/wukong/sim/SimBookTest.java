@@ -30,6 +30,7 @@ package com.nabiki.wukong.sim;
 
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.GsonBuilder;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import org.junit.Test;
 
 import java.io.FileWriter;
@@ -39,21 +40,21 @@ import java.io.PrintWriter;
 public class SimBookTest {
     @Test
     public void basic() {
-        var ask = new SimBook.Spread();
-        ask.price = 2003;
-        ask.volume = 1320;
-        ask.type = SimBook.SpreadType.ASK;
+        var origin = new CThostFtdcDepthMarketDataField();
 
-        var bid = new SimBook.Spread();
-        bid.price = 2002;
-        bid.volume = 1320;
-        bid.type = SimBook.SpreadType.BUY;
+        origin.InstrumentID = "x2009";
+        origin.AskVolume1 = 1352;
+        origin.AskPrice1 = 2100;
+        origin.BidVolume1 = 465;
+        origin.BidPrice1 = 2099;
+        origin.PreClosePrice = 2099;
+        origin.PreSettlementPrice = 2104;
 
         var gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .setFieldNamingPolicy(FieldNamingPolicy.IDENTITY).create();
 
-        var book = new SimBook("x2009", ask, bid);
+        var book = new SimBook(origin, 1.0D, 0.5D);
         book.setBuyChance(0.6);
         for (int i = 0; i < 1000; ++i)
             write(book.refresh().LastPrice);
@@ -68,11 +69,13 @@ public class SimBookTest {
     }
 
     private static void write(double price) {
-        try (PrintWriter pw = new PrintWriter(new FileWriter("last_price.txt", true))) {
-            pw.println(price);
-            pw.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        while (true)
+            try (PrintWriter pw = new PrintWriter(
+                    new FileWriter("last_price.txt", true))) {
+                pw.println(price);
+                pw.flush();
+                break;
+            } catch (IOException ignored) {
+            }
     }
 }

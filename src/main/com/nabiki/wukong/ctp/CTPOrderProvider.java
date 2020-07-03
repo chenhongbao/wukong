@@ -98,7 +98,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * Initialize connection to remote counter.
      */
     @OutTeam
-    void initialize() {
+    public void initialize() {
         configTrader();
         this.traderApi.Init();
     }
@@ -107,7 +107,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * Disconnect the trader api and release resources.
      */
     @OutTeam
-    void release() {
+    public void release() {
         this.traderApi.Release();
     }
 
@@ -115,11 +115,11 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * Request login.
      */
     @OutTeam
-    void login() {
+    public void login() {
         if (!this.isConnected)
             throw new IllegalStateException("not connected");
         if (this.isConfirmed)
-            throw new IllegalStateException("duplicated login");
+            throw new IllegalStateException("repeated login");
         doAuthentication();
     }
 
@@ -127,9 +127,9 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * Request logout;
      */
     @OutTeam
-    void logout() {
+    public void logout() {
         if (!this.isConfirmed)
-            throw new IllegalStateException("duplicated logout");
+            throw new IllegalStateException("repeated logout");
         doLogout();
     }
 
@@ -187,6 +187,11 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             throw new IllegalStateException("unconfirmed yet");
         this.flowWrt.writeReq(action);
         return this.traderApi.ReqOrderAction(action, OP.getIncrementID());
+    }
+
+    @Override
+    public List<String> getInstruments() {
+        return new LinkedList<>(this.instrs);
     }
 
     private void doLogin() {
@@ -359,12 +364,14 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                 OP.formatLog("trader disconnected", null, null,
                         reason));
         this.isConnected = false;
+        this.isConfirmed = false;
     }
 
     @Override
     public void OnErrRtnOrderAction(CThostFtdcOrderActionField orderAction,
                                     CThostFtdcRspInfoField rspInfo) {
         this.flowWrt.writeErr(orderAction);
+        this.flowWrt.writeErr(rspInfo);
         this.config.getLogger().warning(
                 OP.formatLog("failed action", orderAction.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -374,6 +381,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     public void OnErrRtnOrderInsert(CThostFtdcInputOrderField inputOrder,
                                     CThostFtdcRspInfoField rspInfo) {
         this.flowWrt.writeErr(inputOrder);
+        this.flowWrt.writeErr(rspInfo);
         this.config.getLogger().severe(
                 OP.formatLog("failed order insertion", inputOrder.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -387,10 +395,12 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
         if (rspInfo.ErrorID == 0)
             doLogin();
-        else
+        else {
             this.config.getLogger().severe(
                     OP.formatLog("failed authentication", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
+            this.flowWrt.writeErr(rspInfo);
+        }
     }
 
     @Override
@@ -407,6 +417,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                                  CThostFtdcRspInfoField rspInfo, int requestId,
                                  boolean isLast) {
         this.flowWrt.writeErr(inputOrderAction);
+        this.flowWrt.writeErr(rspInfo);
         this.config.getLogger().warning(
                 OP.formatLog("failed action", inputOrderAction.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -417,6 +428,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                                  CThostFtdcRspInfoField rspInfo, int requestId,
                                  boolean isLast) {
         this.flowWrt.writeErr(inputOrder);
+        this.flowWrt.writeErr(rspInfo);
         this.config.getLogger().severe(
                 OP.formatLog("failed order insertion", inputOrder.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -428,14 +440,21 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     public void OnRspQryInstrument(CThostFtdcInstrumentField instrument,
                                    CThostFtdcRspInfoField rspInfo, int requestId,
                                    boolean isLast) {
-        this.flowWrt.writeRsp(instrument);
-        ConfigLoader.setInstrConfig(instrument);
-        // Sync on instrument set.
-        synchronized (this.instrs) {
-            if (this.qryInstrLast)
-                this.instrs.clear();
-            this.instrs.add(instrument.InstrumentID);
-            this.qryInstrLast = isLast;
+        if (rspInfo.ErrorID == 0) {
+            this.flowWrt.writeRsp(instrument);
+            ConfigLoader.setInstrConfig(instrument);
+            // Sync on instrument set.
+            synchronized (this.instrs) {
+                if (this.qryInstrLast)
+                    this.instrs.clear();
+                this.instrs.add(instrument.InstrumentID);
+                this.qryInstrLast = isLast;
+            }
+        } else {
+            this.config.getLogger().severe(
+                    OP.formatLog("failed instrument query", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+            this.flowWrt.writeErr(rspInfo);
         }
     }
 
@@ -443,16 +462,30 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     public void OnRspQryInstrumentCommissionRate(
             CThostFtdcInstrumentCommissionRateField instrumentCommissionRate,
             CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
-        this.flowWrt.writeRsp(instrumentCommissionRate);
-        ConfigLoader.setInstrConfig(instrumentCommissionRate);
+        if (rspInfo.ErrorID == 0) {
+            this.flowWrt.writeRsp(instrumentCommissionRate);
+            ConfigLoader.setInstrConfig(instrumentCommissionRate);
+        } else {
+            this.config.getLogger().severe(
+                    OP.formatLog("failed commission query", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+            this.flowWrt.writeErr(rspInfo);
+        }
     }
 
     @Override
     public void OnRspQryInstrumentMarginRate(
             CThostFtdcInstrumentMarginRateField instrumentMarginRate,
             CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
-        this.flowWrt.writeRsp(instrumentMarginRate);
-        ConfigLoader.setInstrConfig(instrumentMarginRate);
+        if (rspInfo.ErrorID == 0) {
+            this.flowWrt.writeRsp(instrumentMarginRate);
+            ConfigLoader.setInstrConfig(instrumentMarginRate);
+        } else {
+            this.config.getLogger().severe(
+                    OP.formatLog("failed margin query", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
+            this.flowWrt.writeErr(rspInfo);
+        }
     }
 
     @Override
@@ -466,10 +499,12 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             this.isConfirmed = true;
             // Query instruments.
             doQueryInstr();
-        } else
+        } else {
             this.config.getLogger().severe(
                     OP.formatLog("failed settlement confirm", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
+            this.flowWrt.writeErr(rspInfo);
+        }
     }
 
     @Override
@@ -479,10 +514,12 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         if (rspInfo.ErrorID == 0) {
             doSettlement();
             doRspLogin(rspUserLogin);
-        } else
+        } else {
             this.config.getLogger().severe(
                     OP.formatLog("failed login", null, rspInfo.ErrorMsg,
                             rspInfo.ErrorID));
+            this.flowWrt.writeErr(rspInfo);
+        }
     }
 
     @Override
@@ -494,10 +531,12 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                     OP.formatLog("successful logout", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
             this.isConfirmed = false;
-        } else
+        } else {
             this.config.getLogger().warning(
                     OP.formatLog("failed logout", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
+            this.flowWrt.writeErr(rspInfo);
+        }
     }
 
     @Override
