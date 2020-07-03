@@ -131,7 +131,8 @@ public class SimTickProvider implements TickProvider {
                             r.enqueue(md);
                     }
                     try {
-                        Thread.sleep(500);
+                        int wi = rand.nextInt(10) + 1;
+                        Thread.sleep(wi * 500);
                     } catch (InterruptedException ignored) {
                         // Possible caused by release. Break the loop and check the
                         // mark.
