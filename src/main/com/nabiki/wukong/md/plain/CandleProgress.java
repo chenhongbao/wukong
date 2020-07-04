@@ -90,6 +90,7 @@ public class CandleProgress {
         var r = peak(tradingDay);
         this.lastVolume = this.lastVolumeUpdated;
         this.lastVolumeUpdated = 0;
+        this.popped = true;
         return r;
     }
 }

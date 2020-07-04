@@ -40,6 +40,7 @@ import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CandleEngine extends TimerTask {
     private final static long MILLIS = TimeUnit.MINUTES.toMillis(1);
@@ -54,6 +55,8 @@ public class CandleEngine extends TimerTask {
             Duration.ofHours(24)
     };
 
+    private final AtomicBoolean working = new AtomicBoolean(false);
+
     public CandleEngine(Config cfg) {
         this.config = cfg;
         prepare();
@@ -67,6 +70,11 @@ public class CandleEngine extends TimerTask {
         for (var keeper : m.values())
             for (var du : this.durations)
                 keeper.sample(du);
+    }
+
+    @InTeam
+    public void setWorking(boolean working) {
+        this.working.set(working);
     }
 
     /**
@@ -87,7 +95,7 @@ public class CandleEngine extends TimerTask {
             if (this.products.containsKey(product))
                 return this.products.get(product);
             else {
-                this.products.put(product, new Product(product));
+                this.products.put(product, new Product());
                 p = this.products.get(product);
             }
         }
@@ -111,6 +119,10 @@ public class CandleEngine extends TimerTask {
 
     @Override
     public void run() {
+        // Not working, don't generate candles.
+        if (!this.working.get())
+            return;
+        // Working now.
         var now = LocalTime.now();
         var hours = this.config.getAllTradingHour();
         for (var e : this.products.entrySet()) {
@@ -130,11 +142,9 @@ public class CandleEngine extends TimerTask {
     }
 
     class Product {
-        private final String product;
         private final Map<String, SingleCandle> candles = new HashMap<>();
 
-        Product(String product) {
-            this.product = product;
+        Product() {
         }
 
         public void registerInstr(String instrID) {
