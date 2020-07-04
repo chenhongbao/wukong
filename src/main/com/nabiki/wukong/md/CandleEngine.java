@@ -29,7 +29,7 @@
 package com.nabiki.wukong.md;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.api.FlowRouter;
+import com.nabiki.wukong.api.MarketDateRouter;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.md.plain.Candle;
 import com.nabiki.wukong.tools.InTeam;
@@ -48,7 +48,7 @@ public class CandleEngine extends TimerTask {
     private final Config config;
     private final Timer timer = new Timer();
     private final Map<String, Product> products = new ConcurrentHashMap<>();
-    private final Set<FlowRouter> routers = new HashSet<>();
+    private final Set<MarketDateRouter> routers = new HashSet<>();
     private final Duration[] durations = new Duration[] {
             Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15),
             Duration.ofMinutes(30), Duration.ofHours(1), Duration.ofHours(2),
@@ -105,7 +105,7 @@ public class CandleEngine extends TimerTask {
     }
 
     @InTeam
-    public void registerRouter(FlowRouter router) {
+    public void registerRouter(MarketDateRouter router) {
         if (router != null)
             synchronized (this.routers) {
                 this.routers.add(router);
@@ -136,7 +136,7 @@ public class CandleEngine extends TimerTask {
             for (var du : this.durations) {
                 if (h.contains(du, now))
                     for (var r : this.routers)
-                        r.enqueue(e.getValue().pop(du));
+                        r.route(e.getValue().pop(du));
             }
         }
     }

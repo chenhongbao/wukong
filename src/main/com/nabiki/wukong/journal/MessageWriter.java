@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.olap;
+package com.nabiki.wukong.journal;
 
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.wukong.cfg.Config;
@@ -40,16 +40,16 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class FlowWriter {
+public class MessageWriter {
     private final Config config;
     private final Path reqDir, rtnDir, rspDir, errDir, stlDir;
     private final DateTimeFormatter formatter
             = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSSSSS");
-    private final FlowWriterDB db;
+    private final MessageWriterDB db;
 
-    public FlowWriter(Config cfg) {
+    public MessageWriter(Config cfg) {
         this.config = cfg;
-        this.db = new FlowWriterDB(this.config);
+        this.db = new MessageWriterDB(this.config);
         this.reqDir = getPath("dir.flow.req");
         this.rtnDir = getPath("dir.flow.rtn");
         this.rspDir = getPath("dir.flow.rsp");

@@ -38,7 +38,7 @@ public interface TickProvider {
     void register(CandleEngine engine);
 
     @InTeam
-    void register(FlowRouter router);
+    void register(MarketDateRouter router);
 
     void subscribe(List<String> instr);
 

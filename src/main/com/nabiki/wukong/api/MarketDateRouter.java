@@ -33,10 +33,10 @@ import com.nabiki.wukong.md.plain.Candle;
 
 import java.util.Collection;
 
-public interface FlowRouter {
-    void enqueue(CThostFtdcDepthMarketDataField md);
+public interface MarketDateRouter {
+    void route(CThostFtdcDepthMarketDataField md);
 
-    void enqueue(Candle cnd);
+    void route(Candle cnd);
 
-    void enqueue(Collection<Candle> cnds);
+    void route(Collection<Candle> cnds);
 }

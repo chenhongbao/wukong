@@ -31,12 +31,12 @@ package com.nabiki.wukong.ctp;
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.md.CThostFtdcMdApi;
 import com.nabiki.ctp4j.md.CThostFtdcMdSpi;
-import com.nabiki.wukong.api.FlowRouter;
+import com.nabiki.wukong.api.MarketDateRouter;
 import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
+import com.nabiki.wukong.journal.MessageWriter;
 import com.nabiki.wukong.md.CandleEngine;
-import com.nabiki.wukong.olap.FlowWriter;
 import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 
@@ -49,8 +49,8 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
     private final Config config;
     private final LoginConfig loginCfg;
     private final CThostFtdcMdApi mdApi;
-    private final FlowWriter flowWrt;
-    private final Set<FlowRouter> routers = new HashSet<>();
+    private final MessageWriter flowWrt;
+    private final Set<MarketDateRouter> routers = new HashSet<>();
     private final Set<CandleEngine> engines = new HashSet<>();
 
     private boolean isConnected = false,
@@ -62,7 +62,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
         this.loginCfg = this.config.getLoginConfigs().get("md");
         this.mdApi = CThostFtdcMdApi.CreateFtdcMdApi(this.loginCfg.flowDirectory,
                 this.loginCfg.isUsingUDP, this.loginCfg.isMulticast);
-        this.flowWrt = new FlowWriter(this.config);
+        this.flowWrt = new MessageWriter(this.config);
     }
 
     @Override
@@ -75,7 +75,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
 
     @Override
     @InTeam
-    public void register(FlowRouter router) {
+    public void register(MarketDateRouter router) {
         synchronized (this.routers) {
             this.routers.add(router);
         }
@@ -269,7 +269,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
     public void OnRtnDepthMarketData(CThostFtdcDepthMarketDataField depthMarketData) {
         synchronized (this.routers) {
             for (var r : this.routers)
-                r.enqueue(depthMarketData);
+                r.route(depthMarketData);
         }
         synchronized (this.engines) {
             for (var e : this.engines)

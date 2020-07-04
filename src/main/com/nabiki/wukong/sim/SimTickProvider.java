@@ -29,7 +29,7 @@
 package com.nabiki.wukong.sim;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.api.FlowRouter;
+import com.nabiki.wukong.api.MarketDateRouter;
 import com.nabiki.wukong.api.TickProvider;
 import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.md.CandleEngine;
@@ -45,7 +45,7 @@ import java.util.Set;
  * TODO Provide a higher customizable fake market data generator.
  */
 public class SimTickProvider implements TickProvider {
-    private final Set<FlowRouter> routers = new HashSet<>();
+    private final Set<MarketDateRouter> routers = new HashSet<>();
     private final Set<CandleEngine> engines = new HashSet<>();
     private final Thread daemon;
 
@@ -63,7 +63,7 @@ public class SimTickProvider implements TickProvider {
     }
 
     @Override
-    public void register(FlowRouter router) {
+    public void register(MarketDateRouter router) {
         synchronized (this.routers) {
             this.routers.add(router);
         }
@@ -139,7 +139,7 @@ public class SimTickProvider implements TickProvider {
                     }
                     synchronized (routers) {
                         for (var r : routers)
-                            r.enqueue(md);
+                            r.route(md);
                     }
                     try {
                         int wi = rand.nextInt(10) + 1;

@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.olap;
+package com.nabiki.wukong.journal;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
@@ -41,7 +41,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 
-public class FlowWriterDB {
+public class MessageWriterDB {
     private final Config config;
     private final Queue<CThostFtdcOrderField> orders;
     private final Queue<CThostFtdcTradeField> trades;
@@ -49,7 +49,7 @@ public class FlowWriterDB {
     private final ReentrantLock lck = new ReentrantLock();
     private final Condition cond = lck.newCondition();
 
-    FlowWriterDB(Config cfg) {
+    MessageWriterDB(Config cfg) {
         this.config = cfg;
         this.orders = new ConcurrentLinkedQueue<>();
         this.trades = new ConcurrentLinkedQueue<>();

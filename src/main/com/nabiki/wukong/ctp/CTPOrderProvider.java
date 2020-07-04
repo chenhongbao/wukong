@@ -38,7 +38,7 @@ import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.ConfigLoader;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
-import com.nabiki.wukong.olap.FlowWriter;
+import com.nabiki.wukong.journal.MessageWriter;
 import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.tools.OrderMapper;
@@ -62,7 +62,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     private final AtomicInteger orderRef = new AtomicInteger(0);
     private final Config config;
     private final LoginConfig loginCfg;
-    private final FlowWriter flowWrt;
+    private final MessageWriter flowWrt;
     private final CThostFtdcTraderApi traderApi;
     private final Thread orderDaemon = new Thread(new OrderDaemon());
     private final Timer qryTimer = new Timer();
@@ -84,7 +84,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     CTPOrderProvider(Config cfg) {
         this.config = cfg;
         this.loginCfg = this.config.getLoginConfigs().get("trader");
-        this.flowWrt = new FlowWriter(this.config);
+        this.flowWrt = new MessageWriter(this.config);
         this.traderApi = CThostFtdcTraderApi.CreateFtdcTraderApi(
                 this.loginCfg.flowDirectory);
         // Start query timer task.
