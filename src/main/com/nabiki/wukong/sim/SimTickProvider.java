@@ -31,6 +31,7 @@ package com.nabiki.wukong.sim;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.api.FlowRouter;
 import com.nabiki.wukong.api.TickProvider;
+import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.md.CandleEngine;
 
 import java.util.HashSet;
@@ -97,6 +98,16 @@ public class SimTickProvider implements TickProvider {
     @Override
     public void logout() {
         // nothing
+    }
+
+    /**
+     * Get working state.
+     *
+     * @return always {@link WorkingState#STARTED}
+     */
+    @Override
+    public WorkingState getWorkingState() {
+        return WorkingState.STARTED;
     }
 
     class TickGenerator implements Runnable {

@@ -28,32 +28,6 @@
 
 package com.nabiki.wukong.api;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.wukong.active.ActiveOrder;
-import com.nabiki.wukong.tools.InTeam;
-import com.nabiki.wukong.tools.OrderMapper;
-
-import java.util.List;
-
-public interface OrderProvider {
-    @InTeam
-    OrderMapper getMapper();
-
-    int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active);
-
-    int sendOrderAction(CThostFtdcInputOrderActionField action,
-                        ActiveOrder alive);
-
-    List<String> getInstruments();
-
-    void initialize();
-
-    void release();
-
-    void login();
-
-    void logout();
-
-    WorkingState getWorkingState();
+public enum WorkingState {
+    STARTING, STARTED, STOPPING, STOPPED
 }

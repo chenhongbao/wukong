@@ -32,6 +32,7 @@ import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
 import com.nabiki.wukong.active.ActiveOrder;
 import com.nabiki.wukong.api.OrderProvider;
+import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.tools.OrderMapper;
 
 import java.util.List;
@@ -85,5 +86,15 @@ public class SimOrderProvider implements OrderProvider {
     @Override
     public void logout() {
 
+    }
+
+    /**
+     * Get working state.
+     *
+     * @return always {@link WorkingState#STARTED}
+     */
+    @Override
+    public WorkingState getWorkingState() {
+        return WorkingState.STARTED;
     }
 }

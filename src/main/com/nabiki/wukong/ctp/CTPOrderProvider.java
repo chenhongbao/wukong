@@ -34,6 +34,7 @@ import com.nabiki.ctp4j.trader.CThostFtdcTraderApi;
 import com.nabiki.ctp4j.trader.CThostFtdcTraderSpi;
 import com.nabiki.wukong.active.ActiveOrder;
 import com.nabiki.wukong.api.OrderProvider;
+import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.ConfigLoader;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
@@ -74,9 +75,11 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
 
     private boolean isConfirmed = false,
             isConnected = false,
-            qryInstrLast = false,
-            isReleased = false;
+            qryInstrLast = false;
     private CThostFtdcRspUserLoginField rspLogin;
+
+    // State.
+    private WorkingState workingState = WorkingState.STOPPED;
 
     CTPOrderProvider(Config cfg) {
         this.config = cfg;
@@ -123,8 +126,10 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      */
     @OutTeam
     public void release() {
-        // Mark release.
-        this.isReleased = true;
+        // Set states.
+        this.isConfirmed = false;
+        this.isConnected = false;
+        this.workingState = WorkingState.STOPPED;
         // Cancel threads.
         this.qryTimer.cancel();
         this.orderDaemon.interrupt();
@@ -148,6 +153,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             throw new IllegalStateException("not connected");
         if (this.isConfirmed)
             throw new IllegalStateException("repeated login");
+        this.workingState = WorkingState.STARTING;
         doAuthentication();
     }
 
@@ -158,7 +164,13 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     public void logout() {
         if (!this.isConfirmed)
             throw new IllegalStateException("repeated logout");
+        this.workingState = WorkingState.STOPPING;
         doLogout();
+    }
+
+    @Override
+    public WorkingState getWorkingState() {
+        return this.workingState;
     }
 
     /**
@@ -432,6 +444,9 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     @Override
     public void OnFrontConnected() {
         this.isConnected = true;
+        if (this.workingState == WorkingState.STARTING
+                || this.workingState == WorkingState.STARTED)
+            doLogin();
     }
 
     @Override
@@ -573,6 +588,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                     OP.formatLog("successful login", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
             this.isConfirmed = true;
+            this.workingState = WorkingState.STARTED;
             // Query instruments.
             doQueryInstr();
         } else {
@@ -607,6 +623,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                     OP.formatLog("successful logout", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
             this.isConfirmed = false;
+            this.workingState = WorkingState.STOPPED;
         } else {
             this.config.getLogger().warning(
                     OP.formatLog("failed logout", null,
@@ -686,7 +703,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                         }
                     }
                 } catch (InterruptedException e) {
-                    if (isReleased)
+                    if (workingState == WorkingState.STOPPING
+                            || workingState == WorkingState.STOPPED)
                         break;
                     else
                         config.getLogger().warning(

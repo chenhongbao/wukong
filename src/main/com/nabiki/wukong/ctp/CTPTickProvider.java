@@ -32,6 +32,7 @@ import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.md.CThostFtdcMdApi;
 import com.nabiki.ctp4j.md.CThostFtdcMdSpi;
 import com.nabiki.wukong.api.FlowRouter;
+import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.md.CandleEngine;
@@ -54,6 +55,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
 
     private boolean isConnected = false,
             isLogin = false;
+    private WorkingState workingState = WorkingState.STOPPED;
 
     public CTPTickProvider(Config cfg) {
         this.config = cfg;
@@ -116,6 +118,12 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
 
     @Override
     public void release() {
+        // Set states.
+        this.isLogin = false;
+        this.isConnected = false;
+        this.workingState = WorkingState.STOPPED;
+        setWorking(false);
+        // Release resources.
         this.mdApi.Release();
     }
 
@@ -123,6 +131,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
     public void login() {
         if (!this.isConnected)
             throw new IllegalStateException("not connected");
+        this.workingState = WorkingState.STARTING;
         doLogin();
     }
 
@@ -130,11 +139,17 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
     public void logout() {
         if (!this.isLogin)
             throw new IllegalStateException("repeated logout");
+        this.workingState = WorkingState.STOPPING;
         doLogout();
     }
 
-    private void subscribeBatch(String[] instr, int count) {
+    @Override
+    public WorkingState getWorkingState() {
+        return this.workingState;
+    }
 
+    private void subscribeBatch(String[] instr, int count) {
+        this.mdApi.SubscribeMarketData(instr, count);
     }
 
     private void doLogin() {
@@ -160,9 +175,19 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
                             null, r));
     }
 
+    private void setWorking(boolean working) {
+        synchronized (this.engines) {
+            for (var e : this.engines)
+                e.setWorking(working);
+        }
+    }
+
     @Override
     public void OnFrontConnected() {
         this.isConnected = true;
+        if (this.workingState == WorkingState.STARTING
+                || this.workingState == WorkingState.STARTED)
+            doLogin();
     }
 
     @Override
@@ -170,7 +195,9 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
         this.config.getLogger().warning(
                 OP.formatLog("md disconnected", null, null,
                         reason));
+        this.isLogin = false;
         this.isConnected = false;
+        setWorking(false);
     }
 
     @Override
@@ -186,9 +213,11 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
     public void OnRspUserLogin(CThostFtdcRspUserLoginField rspUserLogin,
                                CThostFtdcRspInfoField rspInfo, int requestId,
                                boolean isLast) {
-        if (rspInfo.ErrorID == 0)
+        if (rspInfo.ErrorID == 0) {
             this.isLogin = true;
-        else {
+            this.workingState = WorkingState.STARTED;
+            setWorking(true);
+        } else {
             this.config.getLogger().severe(
                     OP.formatLog("failed login", null, rspInfo.ErrorMsg,
                             rspInfo.ErrorID));
@@ -200,9 +229,11 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
     public void OnRspUserLogout(CThostFtdcUserLogoutField userLogout,
                                 CThostFtdcRspInfoField rspInfo, int nRequestID,
                                 boolean isLast) {
-        if (rspInfo.ErrorID == 0)
+        if (rspInfo.ErrorID == 0) {
             this.isLogin = false;
-        else {
+            this.workingState = WorkingState.STOPPED;
+            setWorking(false);
+        } else {
             this.config.getLogger().warning(
                     OP.formatLog("failed logout", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));

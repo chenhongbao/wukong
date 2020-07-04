@@ -49,4 +49,6 @@ public interface TickProvider {
     void login();
 
     void logout();
+
+    WorkingState getWorkingState();
 }
