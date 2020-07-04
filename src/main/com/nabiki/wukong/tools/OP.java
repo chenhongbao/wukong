@@ -91,6 +91,8 @@ public class OP {
 
     // Instrument product ID pattern.
     private static final Pattern productPattern = Pattern.compile("[a-zA-Z]+");
+
+    // GSON.
     private final static Gson gson;
     static {
         gson = new GsonBuilder()
@@ -99,6 +101,14 @@ public class OP {
                 .setPrettyPrinting()
                 .create();
     }
+
+    // Day and time.
+    private static final String dayPatternStr = "yyyyMMdd";
+    private static final String timePatternStr = "HH:mm:ss";
+    private static final DateTimeFormatter dayPattern = DateTimeFormatter
+            .ofPattern(dayPatternStr);
+    private static final DateTimeFormatter timePattern = DateTimeFormatter
+            .ofPattern(timePatternStr);
 
     /**
      * Parse the specified JSON string to object of the specified {@link Class}.
@@ -230,8 +240,11 @@ public class OP {
     @OutTeam
     public static String getToday(String pattern) {
         if (pattern == null || pattern.trim().length() == 0)
-            pattern = "yyyyMMdd";
-        return LocalDate.now().format(DateTimeFormatter.ofPattern(pattern));
+            pattern = dayPatternStr;
+        if (pattern.compareTo(dayPatternStr) == 0)
+            return LocalDate.now().format(dayPattern);
+        else
+            return LocalDate.now().format(DateTimeFormatter.ofPattern(pattern));
     }
 
     /**
@@ -244,7 +257,50 @@ public class OP {
     @OutTeam
     public static String getTime(String pattern) {
         if (pattern == null || pattern.trim().length() == 0)
-            pattern = "HH:mm:ss";
-        return LocalTime.now().format(DateTimeFormatter.ofPattern(pattern));
+            pattern = timePatternStr;
+        if (pattern.compareTo(timePatternStr) == 0)
+            return LocalTime.now().format(timePattern);
+        else
+            return LocalTime.now().format(DateTimeFormatter.ofPattern(pattern));
+    }
+
+    /**
+     * Parse the specified day from string to {@link LocalDate} with the specified
+     * pattern in the convention of {@link DateTimeFormatter}.
+     *
+     * @param day string representation of a day
+     * @param pattern pattern
+     * @return {@link LocalDate}
+     */
+    @OutTeam
+    public static LocalDate parseDay(String day, String pattern) {
+        if (day == null || day.trim().length() == 0)
+            return null;
+        if (pattern == null || pattern.trim().length() == 0)
+            pattern = dayPatternStr;
+        if (pattern.compareTo(dayPatternStr) == 0)
+            return LocalDate.parse(day, dayPattern);
+        else
+            return LocalDate.parse(day, DateTimeFormatter.ofPattern(pattern));
+    }
+
+    /**
+     * Parse the specified time from string to {@link LocalTime} with the specified
+     * pattern in the convention of {@link DateTimeFormatter}.
+     *
+     * @param time string representation of time
+     * @param pattern pattern
+     * @return {@link LocalTime}
+     */
+    @OutTeam
+    public static LocalTime parseTime(String time, String pattern) {
+        if (time == null || time.trim().length() == 0)
+            return null;
+        if (pattern == null || pattern.trim().length() == 0)
+            pattern = timePatternStr;
+        if (pattern.compareTo(timePatternStr) == 0)
+            return LocalTime.parse(time, timePattern);
+        else
+            return LocalTime.parse(time, DateTimeFormatter.ofPattern(pattern));
     }
 }

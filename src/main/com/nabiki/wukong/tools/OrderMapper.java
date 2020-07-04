@@ -52,17 +52,17 @@ public class OrderMapper {
     /**
      * Register the detailed order and active order, and create mappings.
      *
-     * @param detail detailed order
+     * @param order detailed order
      * @param active active order that issues the detailed order
      */
     @InTeam
-    public void register(CThostFtdcInputOrderField detail, ActiveOrder active) {
-        this.detRef2Uuid.put(detail.OrderRef, active.getOrderUUID());
+    public void register(CThostFtdcInputOrderField order, ActiveOrder active) {
+        this.detRef2Uuid.put(order.OrderRef, active.getOrderUUID());
         this.uuid2Active.put(active.getOrderUUID(), active);
         this.uuid2DetRef.computeIfAbsent(active.getOrderUUID(),
                 k -> new HashSet<>());
-        this.uuid2DetRef.get(active.getOrderUUID()).add(detail.OrderRef);
-        this.detRef2Det.put(detail.OrderRef, detail);
+        this.uuid2DetRef.get(active.getOrderUUID()).add(order.OrderRef);
+        this.detRef2Det.put(order.OrderRef, order);
 
     }
 

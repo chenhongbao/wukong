@@ -43,8 +43,14 @@ import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.tools.OrderMapper;
 import com.nabiki.wukong.tools.OutTeam;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * {@code AliveOrderManager} keeps the status of all alive orders, interacts with
@@ -57,12 +63,19 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     private final LoginConfig loginCfg;
     private final FlowWriter flowWrt;
     private final CThostFtdcTraderApi traderApi;
+    private final Thread orderDaemon = new Thread(new OrderDaemon());
     private final Timer qryTimer = new Timer();
     private final List<String> instrs = new LinkedList<>();
 
+    // Order and signals.
+    private final ReentrantLock lck = new ReentrantLock();
+    private final Condition cond = lck.newCondition();
+    private final List<PendingOrder> pendingOrders = new LinkedList<>();
+
     private boolean isConfirmed = false,
             isConnected = false,
-            qryInstrLast = false;
+            qryInstrLast = false,
+            isReleased = false;
     private CThostFtdcRspUserLoginField rspLogin;
 
     CTPOrderProvider(Config cfg) {
@@ -73,6 +86,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                 this.loginCfg.flowDirectory);
         // Start query timer task.
         this.qryTimer.scheduleAtFixedRate(new QueryTask(), 0, 3000);
+        // Start order daemon.
+        this.orderDaemon.start();
     }
 
     /**
@@ -108,6 +123,19 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      */
     @OutTeam
     public void release() {
+        // Mark release.
+        this.isReleased = true;
+        // Cancel threads.
+        this.qryTimer.cancel();
+        this.orderDaemon.interrupt();
+        try {
+            this.orderDaemon.join(5000);
+        } catch (InterruptedException e) {
+            this.config.getLogger().warning(
+                    OP.formatLog("failed join order daemon",
+                            null, e.getMessage(), null));
+        }
+        // Release resources.
         this.traderApi.Release();
     }
 
@@ -137,56 +165,104 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * Save the mapping from the specified input order to the specified alive order,
      * then send the specified input order to remote server.
      *
-     * <p>If the remote service is temporarily unavailable, the order is saved to
-     * send at next market open.
+     * <p>If the remote service is temporarily unavailable within a trading day,
+     * the order is saved to send at next market open. If the trading day is over,
+     * return error.
      * </p>
      *
      * @param detail input order
      * @param active alive order
-     * @return returned value from JNI call
+     * @return always return 0
      */
     @Override
     public int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active) {
-        if (!this.isConfirmed)
-            throw new IllegalStateException("unconfirmed yet");
-        this.flowWrt.writeReq(detail);
-        if (detail.LimitPrice == 0)
-        // Set correct users.
-        detail.OrderRef = getOrderRef();
-        detail.BrokerID = this.rspLogin.BrokerID;
-        detail.UserID = this.rspLogin.UserID;
-        detail.InvestorID = this.rspLogin.UserID;
-        // Adjust flags.
-        detail.CombHedgeFlag = TThostFtdcCombHedgeFlagType.SPECULATION;
-        detail.ContingentCondition = TThostFtdcContingentConditionType.IMMEDIATELY;
-        detail.ForceCloseReason = TThostFtdcForceCloseReasonType.NOT_FORCE_CLOSE;
-        detail.IsAutoSuspend = 0;
-        detail.MinVolume = 1;
-        detail.OrderPriceType = TThostFtdcOrderPriceTypeType.LIMIT_PRICE;
-        detail.StopPrice = 0;
-        detail.TimeCondition = TThostFtdcTimeConditionType.GFD;
-        detail.VolumeCondition = TThostFtdcVolumeConditionType.ANY_VOLUME;
-        // Register detail and active orders.
-        this.mapper.register(detail, active);
-        return this.traderApi.ReqOrderInsert(detail, OP.getIncrementID());
+        if (isOver(detail.InstrumentID)) {
+            rspError(detail, TThostFtdcErrorCode.FRONT_NOT_ACTIVE,
+                    TThostFtdcErrorMessage.FRONT_NOT_ACTIVE);
+        } else {
+            this.lck.lock();
+            try {
+                this.pendingOrders.add(new PendingOrder(detail, active));
+                this.cond.signal();
+            } finally {
+                this.lck.unlock();
+            }
+        }
+        return 0;
+    }
+
+    private void rspError(CThostFtdcInputOrderField order, int code,
+                          String msg) {
+        var rsp = new CThostFtdcRspInfoField();
+        rsp.ErrorID = code;
+        rsp.ErrorMsg = msg;
+        OnErrRtnOrderInsert(order, rsp);
+    }
+
+    private void rspError(CThostFtdcInputOrderActionField action, int code,
+                          String msg) {
+        var rsp = new CThostFtdcRspInfoField();
+        rsp.ErrorID = code;
+        rsp.ErrorMsg = msg;
+        OnRspOrderAction(action, rsp, 0, true);
+    }
+
+    private static final int CONT_TRADE_BEG = 21;
+
+    private boolean isOver(String instrID) {
+        var hour = this.config.getTradingHour(null, instrID);
+        if (hour == null)
+            throw new IllegalArgumentException("invalid instr for trading hour");
+        var depth = this.config.getDepthMarketData(instrID);
+        if (depth == null)
+            throw new IllegalStateException("depth market data not found");
+        var depthTradingDay = OP.parseDay(depth.TradingDay, null);
+        var day = LocalDate.now();
+        var time = LocalTime.now();
+        // Holiday.
+        if (depthTradingDay.isBefore(day))
+            return true;
+        if (CONT_TRADE_BEG <= time.getHour()) {
+            // The night before holiday.
+            return depthTradingDay.equals(day);
+        } else {
+            // Workday.
+            var dayOfWeek = day.getDayOfWeek();
+            return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY
+                    && hour.isEndDay(LocalTime.now());
+        }
     }
 
     /**
      * Send action request to remote server. The method first checks the type
      * of the specified order to be canceled. If it is an order, just cancel it. If
-     * an action and action can't be canceled, return error code.
+     * an action and action can't be canceled, return error.
+     *
+     * <p>If the remote service is temporarily unavailable within a trading day,
+     * the action is saved to send at next market open. If the trading day is over,
+     * return error.
+     * </p>
      *
      * @param action action to send
-     * @param alive alive order
-     * @return error code, or 0 if successful
+     * @param active alive order
+     * @return always return 0
      */
     @Override
     public int sendOrderAction(CThostFtdcInputOrderActionField action,
-                               ActiveOrder alive) {
-        if (!this.isConfirmed)
-            throw new IllegalStateException("unconfirmed yet");
-        this.flowWrt.writeReq(action);
-        return this.traderApi.ReqOrderAction(action, OP.getIncrementID());
+                               ActiveOrder active) {
+        if (isOver(action.InstrumentID)) {
+            rspError(action, TThostFtdcErrorCode.FRONT_NOT_ACTIVE,
+                    TThostFtdcErrorMessage.FRONT_NOT_ACTIVE);
+        } else {
+            this.lck.lock();
+            try {
+                this.pendingOrders.add(new PendingOrder(action, active));
+                this.cond.signal();
+            } finally {
+                this.lck.unlock();
+            }
+        }
+        return 0;
     }
 
     @Override
@@ -550,6 +626,163 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     public void OnRtnTrade(CThostFtdcTradeField trade) {
         this.flowWrt.writeRtn(trade);
         doRtnTrade(trade);
+    }
+
+    private static class PendingOrder {
+        final ActiveOrder active;
+        final CThostFtdcInputOrderField order;
+        final CThostFtdcInputOrderActionField action;
+
+        PendingOrder(CThostFtdcInputOrderField order, ActiveOrder active) {
+            this.order = order;
+            this.action = null;
+            this.active = active;
+        }
+
+        PendingOrder(CThostFtdcInputOrderActionField action, ActiveOrder active) {
+            this.order = null;
+            this.action = action;
+            this.active = active;
+        }
+    }
+
+    private class OrderDaemon implements Runnable {
+        private final int MAX_REQ_PER_SEC = 5;
+
+        @Override
+        public void run() {
+            while (!Thread.currentThread().isInterrupted()) {
+                lck.lock();
+                try {
+                    if (pendingOrders.isEmpty())
+                        cond.await(1, TimeUnit.SECONDS);
+                    // Await time out, or notified by new request.
+                    int sendCnt = 0;
+                    var iter = pendingOrders.listIterator();
+                    while (iter.hasNext()) {
+                        var pend = iter.next();
+                        // Instrument not trading.
+                        if (!isTrading(getInstrID(pend)))
+                            continue;
+                        int r = 0;
+                        // Send order or action.
+                        if (pend.action != null) {
+                            flowWrt.writeReq(pend.action);
+                            r = fillAndSendAction(pend.action);
+                        } else if (pend.order != null) {
+                            flowWrt.writeReq(pend.order);
+                            mapper.register(pend.order, pend.active);
+                            r = fillAndSendOrder(pend.order);
+                        }
+                        // Remove the visited request.
+                        iter.remove();
+                        // Check send ret code.
+                        if (r != 0)
+                            warn(r, pend);
+                        // Flow control.
+                        if (++sendCnt > MAX_REQ_PER_SEC) {
+                            Thread.sleep(TimeUnit.SECONDS.toMillis(1));
+                            break;
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    if (isReleased)
+                        break;
+                    else
+                        config.getLogger().warning(
+                                OP.formatLog("order daemon interrupted",
+                                        null, e.getMessage(),
+                                        null));
+                } finally {
+                    lck.unlock();
+                }
+            }
+        }
+
+        private int fillAndSendOrder(CThostFtdcInputOrderField detail) {
+            // Set correct users.
+            detail.OrderRef = getOrderRef();
+            detail.BrokerID = rspLogin.BrokerID;
+            detail.UserID = rspLogin.UserID;
+            detail.InvestorID = rspLogin.UserID;
+            // Adjust flags.
+            detail.CombHedgeFlag = TThostFtdcCombHedgeFlagType.SPECULATION;
+            detail.ContingentCondition = TThostFtdcContingentConditionType.IMMEDIATELY;
+            detail.ForceCloseReason = TThostFtdcForceCloseReasonType.NOT_FORCE_CLOSE;
+            detail.IsAutoSuspend = 0;
+            detail.MinVolume = 1;
+            detail.OrderPriceType = TThostFtdcOrderPriceTypeType.LIMIT_PRICE;
+            detail.StopPrice = 0;
+            detail.TimeCondition = TThostFtdcTimeConditionType.GFD;
+            detail.VolumeCondition = TThostFtdcVolumeConditionType.ANY_VOLUME;
+            return traderApi.ReqOrderInsert(detail, OP.getIncrementID());
+        }
+
+        private int fillAndSendAction(CThostFtdcInputOrderActionField action) {
+            var instrInfo = config.getInstrInfo(action.InstrumentID);
+            var rtn = mapper.getRtnOrder(action.OrderRef);
+            if (rtn != null) {
+                action.BrokerID = rspLogin.BrokerID;
+                action.InvestorID = rspLogin.UserID;
+                action.UserID = rspLogin.UserID;
+                // Use order sys ID as first choice.
+                action.OrderSysID = rtn.OrderSysID;
+                // Adjust flags.
+                action.ActionFlag = TThostFtdcActionFlagType.DELETE;
+                // Adjust other info.
+                action.OrderRef = null;
+                action.FrontID = 0;
+                action.SessionID = 0;
+                action.ExchangeID = (instrInfo.instrument != null)
+                        ? instrInfo.instrument.ExchangeID : null;
+            } else {
+                action.BrokerID = rspLogin.BrokerID;
+                action.InvestorID = rspLogin.UserID;
+                action.UserID = rspLogin.UserID;
+                // Use order ref + front ID + session ID.
+                // Keep original order ref and instrument ID.
+                action.FrontID = rspLogin.FrontID;
+                action.SessionID = rspLogin.SessionID;
+                // Adjust flags.
+                action.ActionFlag = TThostFtdcActionFlagType.DELETE;
+                // Adjust other info.
+                action.OrderSysID = null;
+                action.ExchangeID = (instrInfo.instrument != null)
+                        ? instrInfo.instrument.ExchangeID : null;
+            }
+            return traderApi.ReqOrderAction(action, OP.getIncrementID());
+        }
+
+        private boolean isTrading(String instrID) {
+            var hour = config.getTradingHour(null, instrID);
+            if (hour == null) {
+                config.getLogger().warning(
+                        OP.formatLog("trading hour config null", instrID,
+                                null, null));
+                return false;
+            }
+            return isConfirmed && hour.contains(LocalTime.now());
+        }
+
+        private String getInstrID(PendingOrder pend) {
+            if (pend.action != null)
+                return pend.action.InstrumentID;
+            else
+                return pend.order.InstrumentID;
+        }
+
+        private void warn(int r, PendingOrder pend) {
+            String ref, hint;
+            if (pend.order != null) {
+                ref = pend.order.OrderRef;
+                hint = "failed sending order";
+            } else {
+                ref = pend.action.OrderRef;
+                hint = "failed sending action";
+            }
+            config.getLogger().warning(
+                    OP.formatLog(hint, ref, null, r));
+        }
     }
 
     private class QueryTask extends TimerTask {

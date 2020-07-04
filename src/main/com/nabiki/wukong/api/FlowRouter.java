@@ -26,23 +26,17 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.olap;
+package com.nabiki.wukong.api;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.md.plain.Candle;
 
 import java.util.Collection;
 
-public class FlowRouter {
-    public void enqueue(CThostFtdcDepthMarketDataField md) {
+public interface FlowRouter {
+    void enqueue(CThostFtdcDepthMarketDataField md);
 
-    }
+    void enqueue(Candle cnd);
 
-    public void enqueue(Candle cnd) {
-
-    }
-
-    public void enqueue(Collection<Candle> cnds) {
-
-    }
+    void enqueue(Collection<Candle> cnds);
 }

@@ -102,12 +102,19 @@ public class ActiveOrder {
     }
 
     void execOrder() {
+        if (this.order == null)
+            throw new IllegalStateException("no order to execute");
         var instrInfo = this.config.getInstrInfo(this.order.InstrumentID);
         Objects.requireNonNull(instrInfo, "instr info null");
         if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN)
             insertOpen(this.order, instrInfo);
         else
             insertClose(this.order, instrInfo);
+    }
+
+    void execAction() {
+        if (this.action == null)
+            throw new IllegalStateException("no order to execute");
     }
 
     private void insertOpen(CThostFtdcInputOrderField order,

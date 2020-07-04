@@ -29,9 +29,9 @@
 package com.nabiki.wukong.sim;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
+import com.nabiki.wukong.api.FlowRouter;
 import com.nabiki.wukong.api.TickProvider;
 import com.nabiki.wukong.md.CandleEngine;
-import com.nabiki.wukong.olap.FlowRouter;
 
 import java.util.HashSet;
 import java.util.List;
