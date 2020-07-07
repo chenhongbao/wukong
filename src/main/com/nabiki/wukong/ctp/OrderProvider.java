@@ -33,8 +33,6 @@ import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.trader.CThostFtdcTraderApi;
 import com.nabiki.ctp4j.trader.CThostFtdcTraderSpi;
 import com.nabiki.wukong.active.ActiveOrder;
-import com.nabiki.wukong.api.OrderProvider;
-import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.ConfigLoader;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
@@ -57,33 +55,32 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code AliveOrderManager} keeps the status of all alive orders, interacts with
  * JNI interfaces and invoke callback methods to process responses.
  */
-public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvider {
-    private final OrderMapper mapper = new OrderMapper();
-    private final AtomicInteger orderRef = new AtomicInteger(0);
-    private final Config config;
-    private final LoginConfig loginCfg;
-    private final MessageWriter flowWrt;
-    private final CThostFtdcTraderApi traderApi;
-    private final Thread orderDaemon = new Thread(new OrderDaemon());
-    private final Timer qryTimer = new Timer();
-    private final List<String> instrs = new LinkedList<>();
-    private final BlockingQueue<PendingOrder> pendingOrders;
+public class OrderProvider extends CThostFtdcTraderSpi {
+    protected final OrderMapper mapper = new OrderMapper();
+    protected final AtomicInteger orderRef = new AtomicInteger(0);
+    protected final Config config;
+    protected final LoginConfig loginCfg;
+    protected final MessageWriter msgWriter;
+    protected final CThostFtdcTraderApi traderApi;
+    protected final Thread orderDaemon = new Thread(new OrderDaemon());
+    protected final Timer qryTimer = new Timer();
+    protected final List<String> instruments = new LinkedList<>();
+    protected final BlockingQueue<PendingOrder> pendingOrders;
 
-    private boolean isConfirmed = false,
+    protected boolean isConfirmed = false,
             isConnected = false,
             qryInstrLast = false;
-    private CThostFtdcRspUserLoginField rspLogin;
+    protected CThostFtdcRspUserLoginField rspLogin;
 
     // State.
-    private WorkingState workingState = WorkingState.STOPPED;
+    protected WorkingState workingState = WorkingState.STOPPED;
 
-    CTPOrderProvider(Config cfg) {
+    public OrderProvider(CThostFtdcTraderApi traderApi, Config cfg) {
         this.config = cfg;
+        this.traderApi = traderApi;
         this.loginCfg = this.config.getLoginConfigs().get("trader");
-        this.flowWrt = new MessageWriter(this.config);
+        this.msgWriter = new MessageWriter(this.config);
         this.pendingOrders = new LinkedBlockingQueue<>();
-        this.traderApi = CThostFtdcTraderApi.CreateFtdcTraderApi(
-                this.loginCfg.flowDirectory);
         // Start query timer task.
         this.qryTimer.scheduleAtFixedRate(new QueryTask(), 0, 3000);
         // Start order daemon.
@@ -95,13 +92,12 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      *
      * @return {@link OrderMapper}
      */
-    @Override
     @InTeam
     public OrderMapper getMapper() {
         return this.mapper;
     }
 
-    private void configTrader() {
+    protected void configTrader() {
         for (var fa : this.loginCfg.frontAddresses)
             this.traderApi.RegisterFront(fa);
         this.traderApi.SubscribePrivateTopic(ThostTeResumeType.THOST_TERT_RESUME);
@@ -165,7 +161,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         doLogout();
     }
 
-    @Override
+    @InTeam
     public WorkingState getWorkingState() {
         return this.workingState;
     }
@@ -183,7 +179,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * @param active alive order
      * @return always return 0
      */
-    @Override
+    @InTeam
     public int sendDetailOrder(CThostFtdcInputOrderField detail,
                                ActiveOrder active) {
         if (isOver(detail.InstrumentID)) {
@@ -198,7 +194,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         }
     }
 
-    private void rspError(CThostFtdcInputOrderField order, int code,
+    protected void rspError(CThostFtdcInputOrderField order, int code,
                           String msg) {
         var rsp = new CThostFtdcRspInfoField();
         rsp.ErrorID = code;
@@ -206,7 +202,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         OnErrRtnOrderInsert(order, rsp);
     }
 
-    private void rspError(CThostFtdcInputOrderActionField action, int code,
+    protected void rspError(CThostFtdcInputOrderActionField action, int code,
                           String msg) {
         var rsp = new CThostFtdcRspInfoField();
         rsp.ErrorID = code;
@@ -214,9 +210,12 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         OnRspOrderAction(action, rsp, 0, true);
     }
 
-    private static final int CONT_TRADE_BEG = 21;
+    /*
+    Beginning hour of continuous trading, at night, 21 pm.
+     */
+    protected static final int CONT_TRADE_BEG = 21;
 
-    private boolean isOver(String instrID) {
+    protected boolean isOver(String instrID) {
         var hour = this.config.getTradingHour(null, instrID);
         if (hour == null)
             throw new IllegalArgumentException("invalid instr for trading hour");
@@ -254,7 +253,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * @param active alive order
      * @return always return 0
      */
-    @Override
+    @InTeam
     public int sendOrderAction(CThostFtdcInputOrderActionField action,
                                ActiveOrder active) {
         if (isOver(action.InstrumentID)) {
@@ -269,12 +268,12 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         }
     }
 
-    @Override
+    @InTeam
     public List<String> getInstruments() {
-        return new LinkedList<>(this.instrs);
+        return new LinkedList<>(this.instruments);
     }
 
-    private void doLogin() {
+    protected void doLogin() {
         var req = new CThostFtdcReqUserLoginField();
         req.BrokerID = this.loginCfg.brokerID;
         req.UserID = this.loginCfg.userID;
@@ -286,7 +285,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                             null, r));
     }
 
-    private void doLogout() {
+    protected void doLogout() {
         var req = new CThostFtdcUserLogoutField();
         req.BrokerID = this.loginCfg.brokerID;
         req.UserID = this.loginCfg.userID;
@@ -297,7 +296,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                             null, r));
     }
 
-    private void doAuthentication() {
+    protected void doAuthentication() {
         var req = new CThostFtdcReqAuthenticateField();
         req.AppID = this.loginCfg.appID;
         req.AuthCode = this.loginCfg.authCode;
@@ -311,7 +310,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                             null, OP.getIncrementID()));
     }
 
-    private void doSettlement() {
+    protected void doSettlement() {
         var req = new CThostFtdcSettlementInfoConfirmField();
         req.BrokerID = this.loginCfg.brokerID;
         req.AccountID = this.loginCfg.userID;
@@ -324,7 +323,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                             null, OP.getIncrementID()));
     }
 
-    private void doRspLogin(CThostFtdcRspUserLoginField rsp) {
+    protected void doRspLogin(CThostFtdcRspUserLoginField rsp) {
         this.rspLogin = rsp;
         // Update order ref if max order ref goes after it.
         var maxOrderRef = Integer.parseInt(this.rspLogin.MaxOrderRef);
@@ -332,7 +331,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             this.orderRef.set(maxOrderRef);
     }
 
-    private String getOrderRef() {
+    protected String getOrderRef() {
         if (this.orderRef.get() == Integer.MAX_VALUE)
             this.orderRef.set(0);
         return String.valueOf(this.orderRef.incrementAndGet());
@@ -341,7 +340,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     /*
      Construct a cancel return order from the specified error order.
      */
-    private CThostFtdcOrderField toCancelRtnOrder(CThostFtdcInputOrderField rtn) {
+    protected CThostFtdcOrderField toCancelRtnOrder(CThostFtdcInputOrderField rtn) {
         var cancel = new CThostFtdcOrderField();
         cancel.AccountID = rtn.AccountID;
         cancel.BrokerID = rtn.BrokerID;
@@ -379,7 +378,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         return cancel;
     }
 
-    private void doRtnOrder(CThostFtdcOrderField rtn) {
+    protected void doRtnOrder(CThostFtdcOrderField rtn) {
         var active = this.mapper.getActiveOrder(rtn.OrderRef);
         if (active == null) {
             this.config.getLogger().warning(
@@ -402,7 +401,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         }
     }
 
-    private void doRtnTrade(CThostFtdcTradeField trade) {
+    protected void doRtnTrade(CThostFtdcTradeField trade) {
         var active = this.mapper.getActiveOrder(trade.OrderRef);
         if (active == null) {
             this.config.getLogger().warning(
@@ -424,7 +423,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         }
     }
 
-    private void doQueryInstr() {
+    protected void doQueryInstr() {
         var req = new CThostFtdcQryInstrumentField();
         var r = this.traderApi.ReqQryInstrument(req, OP.getIncrementID());
         if (r != 0)
@@ -453,8 +452,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     @Override
     public void OnErrRtnOrderAction(CThostFtdcOrderActionField orderAction,
                                     CThostFtdcRspInfoField rspInfo) {
-        this.flowWrt.writeErr(orderAction);
-        this.flowWrt.writeErr(rspInfo);
+        this.msgWriter.writeErr(orderAction);
+        this.msgWriter.writeErr(rspInfo);
         this.config.getLogger().warning(
                 OP.formatLog("failed action", orderAction.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -463,8 +462,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     @Override
     public void OnErrRtnOrderInsert(CThostFtdcInputOrderField inputOrder,
                                     CThostFtdcRspInfoField rspInfo) {
-        this.flowWrt.writeErr(inputOrder);
-        this.flowWrt.writeErr(rspInfo);
+        this.msgWriter.writeErr(inputOrder);
+        this.msgWriter.writeErr(rspInfo);
         this.config.getLogger().severe(
                 OP.formatLog("failed order insertion", inputOrder.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -482,14 +481,14 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             this.config.getLogger().severe(
                     OP.formatLog("failed authentication", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
-            this.flowWrt.writeErr(rspInfo);
+            this.msgWriter.writeErr(rspInfo);
         }
     }
 
     @Override
     public void OnRspError(CThostFtdcRspInfoField rspInfo, int requestId,
                            boolean isLast) {
-        this.flowWrt.writeErr(rspInfo);
+        this.msgWriter.writeErr(rspInfo);
         this.config.getLogger().severe(
                 OP.formatLog("unknown error", null, rspInfo.ErrorMsg,
                         rspInfo.ErrorID));
@@ -499,8 +498,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     public void OnRspOrderAction(CThostFtdcInputOrderActionField inputOrderAction,
                                  CThostFtdcRspInfoField rspInfo, int requestId,
                                  boolean isLast) {
-        this.flowWrt.writeErr(inputOrderAction);
-        this.flowWrt.writeErr(rspInfo);
+        this.msgWriter.writeErr(inputOrderAction);
+        this.msgWriter.writeErr(rspInfo);
         this.config.getLogger().warning(
                 OP.formatLog("failed action", inputOrderAction.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -510,8 +509,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     public void OnRspOrderInsert(CThostFtdcInputOrderField inputOrder,
                                  CThostFtdcRspInfoField rspInfo, int requestId,
                                  boolean isLast) {
-        this.flowWrt.writeErr(inputOrder);
-        this.flowWrt.writeErr(rspInfo);
+        this.msgWriter.writeErr(inputOrder);
+        this.msgWriter.writeErr(rspInfo);
         this.config.getLogger().severe(
                 OP.formatLog("failed order insertion", inputOrder.OrderRef,
                         rspInfo.ErrorMsg, rspInfo.ErrorID));
@@ -524,20 +523,20 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                                    CThostFtdcRspInfoField rspInfo, int requestId,
                                    boolean isLast) {
         if (rspInfo.ErrorID == 0) {
-            this.flowWrt.writeRsp(instrument);
+            this.msgWriter.writeRsp(instrument);
             ConfigLoader.setInstrConfig(instrument);
             // Sync on instrument set.
-            synchronized (this.instrs) {
+            synchronized (this.instruments) {
                 if (this.qryInstrLast)
-                    this.instrs.clear();
-                this.instrs.add(instrument.InstrumentID);
+                    this.instruments.clear();
+                this.instruments.add(instrument.InstrumentID);
                 this.qryInstrLast = isLast;
             }
         } else {
             this.config.getLogger().severe(
                     OP.formatLog("failed instrument query", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
-            this.flowWrt.writeErr(rspInfo);
+            this.msgWriter.writeErr(rspInfo);
         }
     }
 
@@ -546,13 +545,13 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             CThostFtdcInstrumentCommissionRateField instrumentCommissionRate,
             CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
         if (rspInfo.ErrorID == 0) {
-            this.flowWrt.writeRsp(instrumentCommissionRate);
+            this.msgWriter.writeRsp(instrumentCommissionRate);
             ConfigLoader.setInstrConfig(instrumentCommissionRate);
         } else {
             this.config.getLogger().severe(
                     OP.formatLog("failed commission query", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
-            this.flowWrt.writeErr(rspInfo);
+            this.msgWriter.writeErr(rspInfo);
         }
     }
 
@@ -561,13 +560,13 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             CThostFtdcInstrumentMarginRateField instrumentMarginRate,
             CThostFtdcRspInfoField rspInfo, int requestId, boolean isLast) {
         if (rspInfo.ErrorID == 0) {
-            this.flowWrt.writeRsp(instrumentMarginRate);
+            this.msgWriter.writeRsp(instrumentMarginRate);
             ConfigLoader.setInstrConfig(instrumentMarginRate);
         } else {
             this.config.getLogger().severe(
                     OP.formatLog("failed margin query", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
-            this.flowWrt.writeErr(rspInfo);
+            this.msgWriter.writeErr(rspInfo);
         }
     }
 
@@ -587,7 +586,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             this.config.getLogger().severe(
                     OP.formatLog("failed settlement confirm", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
-            this.flowWrt.writeErr(rspInfo);
+            this.msgWriter.writeErr(rspInfo);
         }
     }
 
@@ -602,7 +601,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             this.config.getLogger().severe(
                     OP.formatLog("failed login", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
-            this.flowWrt.writeErr(rspInfo);
+            this.msgWriter.writeErr(rspInfo);
         }
     }
 
@@ -620,24 +619,24 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             this.config.getLogger().warning(
                     OP.formatLog("failed logout", null,
                             rspInfo.ErrorMsg, rspInfo.ErrorID));
-            this.flowWrt.writeErr(rspInfo);
+            this.msgWriter.writeErr(rspInfo);
         }
     }
 
     @Override
     public void OnRtnOrder(CThostFtdcOrderField order) {
-        this.flowWrt.writeRtn(order);
+        this.msgWriter.writeRtn(order);
         this.mapper.register(order);
         doRtnOrder(order);
     }
 
     @Override
     public void OnRtnTrade(CThostFtdcTradeField trade) {
-        this.flowWrt.writeRtn(trade);
+        this.msgWriter.writeRtn(trade);
         doRtnTrade(trade);
     }
 
-    private static class PendingOrder {
+    protected static class PendingOrder {
         final ActiveOrder active;
         final CThostFtdcInputOrderField order;
         final CThostFtdcInputOrderActionField action;
@@ -655,8 +654,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         }
     }
 
-    private class OrderDaemon implements Runnable {
-        private final int MAX_REQ_PER_SEC = 5;
+    protected class OrderDaemon implements Runnable {
+        protected final int MAX_REQ_PER_SEC = 5;
 
         @Override
         public void run() {
@@ -675,10 +674,10 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                     int r = 0;
                     // Send order or action.
                     if (pend.action != null) {
-                        flowWrt.writeReq(pend.action);
+                        msgWriter.writeReq(pend.action);
                         r = fillAndSendAction(pend.action);
                     } else if (pend.order != null) {
-                        flowWrt.writeReq(pend.order);
+                        msgWriter.writeReq(pend.order);
                         mapper.register(pend.order, pend.active);
                         r = fillAndSendOrder(pend.order);
                     }
@@ -711,7 +710,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             }
         }
 
-        private int fillAndSendOrder(CThostFtdcInputOrderField detail) {
+        protected int fillAndSendOrder(CThostFtdcInputOrderField detail) {
             // Set correct users.
             detail.OrderRef = getOrderRef();
             detail.BrokerID = rspLogin.BrokerID;
@@ -730,7 +729,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             return traderApi.ReqOrderInsert(detail, OP.getIncrementID());
         }
 
-        private int fillAndSendAction(CThostFtdcInputOrderActionField action) {
+        protected int fillAndSendAction(CThostFtdcInputOrderActionField action) {
             var instrInfo = config.getInstrInfo(action.InstrumentID);
             var rtn = mapper.getRtnOrder(action.OrderRef);
             if (rtn != null) {
@@ -765,7 +764,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             return traderApi.ReqOrderAction(action, OP.getIncrementID());
         }
 
-        private boolean isTrading(String instrID) {
+        protected boolean isTrading(String instrID) {
             var hour = config.getTradingHour(null, instrID);
             if (hour == null) {
                 config.getLogger().warning(
@@ -776,14 +775,14 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             return isConfirmed && hour.contains(LocalTime.now());
         }
 
-        private String getInstrID(PendingOrder pend) {
+        protected String getInstrID(PendingOrder pend) {
             if (pend.action != null)
                 return pend.action.InstrumentID;
             else
                 return pend.order.InstrumentID;
         }
 
-        private void warn(int r, PendingOrder pend) {
+        protected void warn(int r, PendingOrder pend) {
             String ref, hint;
             if (pend.order != null) {
                 ref = pend.order.OrderRef;
@@ -797,8 +796,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         }
     }
 
-    private class QueryTask extends TimerTask {
-        private final Random rand = new Random();
+    protected class QueryTask extends TimerTask {
+        protected final Random rand = new Random();
 
         @Override
         public void run() {
@@ -807,7 +806,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             doQuery();
         }
 
-        private void doQuery() {
+        protected void doQuery() {
             String ins = randomGet();
             // Query.
             var req = new CThostFtdcQryInstrumentMarginRateField();
@@ -842,9 +841,9 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                                 ins, r));
         }
 
-        private String randomGet() {
-            synchronized (instrs) {
-                return instrs.get(rand.nextInt() % instrs.size());
+        protected String randomGet() {
+            synchronized (instruments) {
+                return instruments.get(rand.nextInt() % instruments.size());
             }
         }
     }

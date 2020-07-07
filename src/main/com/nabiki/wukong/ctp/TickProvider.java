@@ -31,7 +31,6 @@ package com.nabiki.wukong.ctp;
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.md.CThostFtdcMdApi;
 import com.nabiki.ctp4j.md.CThostFtdcMdSpi;
-import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.journal.MessageWriter;
@@ -45,8 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class CTPTickProvider extends CThostFtdcMdSpi
-        implements com.nabiki.wukong.api.TickProvider {
+public class TickProvider extends CThostFtdcMdSpi {
     private final Config config;
     private final LoginConfig loginCfg;
     private final CThostFtdcMdApi mdApi;
@@ -58,15 +56,13 @@ public class CTPTickProvider extends CThostFtdcMdSpi
             isLogin = false;
     private WorkingState workingState = WorkingState.STOPPED;
 
-    public CTPTickProvider(Config cfg) {
+    public TickProvider(CThostFtdcMdApi mdApi, Config cfg) {
         this.config = cfg;
+        this.mdApi = mdApi;
         this.loginCfg = this.config.getLoginConfigs().get("md");
-        this.mdApi = CThostFtdcMdApi.CreateFtdcMdApi(this.loginCfg.flowDirectory,
-                this.loginCfg.isUsingUDP, this.loginCfg.isMulticast);
         this.flowWrt = new MessageWriter(this.config);
     }
 
-    @Override
     @InTeam
     public void register(CandleEngine engine) {
         synchronized (this.engines) {
@@ -74,7 +70,6 @@ public class CTPTickProvider extends CThostFtdcMdSpi
         }
     }
 
-    @Override
     @InTeam
     public void register(MarketDataRouter router) {
         synchronized (this.routers) {
@@ -82,7 +77,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi
         }
     }
 
-    @Override
+    @InTeam
     public void subscribe(List<String> instr) {
         if (instr == null || instr.size() == 0)
             return;
@@ -109,7 +104,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi
         }
     }
 
-    @Override
+    @InTeam
     public void initialize() {
         this.mdApi.RegisterSpi(this);
         for (var addr : this.loginCfg.frontAddresses)
@@ -117,7 +112,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi
         this.mdApi.Init();
     }
 
-    @Override
+    @InTeam
     public void release() {
         // Set states.
         this.isLogin = false;
@@ -128,7 +123,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi
         this.mdApi.Release();
     }
 
-    @Override
+    @InTeam
     public void login() {
         if (!this.isConnected)
             throw new IllegalStateException("not connected");
@@ -136,7 +131,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi
         doLogin();
     }
 
-    @Override
+    @InTeam
     public void logout() {
         if (!this.isLogin)
             throw new IllegalStateException("repeated logout");
@@ -144,7 +139,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi
         doLogout();
     }
 
-    @Override
+    @InTeam
     public WorkingState getWorkingState() {
         return this.workingState;
     }

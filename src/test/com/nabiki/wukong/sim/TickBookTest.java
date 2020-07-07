@@ -28,19 +28,54 @@
 
 package com.nabiki.wukong.sim;
 
+import com.google.gson.FieldNamingPolicy;
+import com.google.gson.GsonBuilder;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.api.MarketDataReceiver;
-import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;
+import org.junit.Test;
 
-public class SimMarketDataReceiver extends SimOrderProvider
-        implements MarketDataReceiver {
-    @Override
-    public void depthReceived(CThostFtdcDepthMarketDataField depth) {
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 
+public class TickBookTest {
+    @Test
+    public void basic() {
+        var origin = new CThostFtdcDepthMarketDataField();
+
+        origin.InstrumentID = "x2009";
+        origin.AskVolume1 = 1352;
+        origin.AskPrice1 = 2100;
+        origin.BidVolume1 = 465;
+        origin.BidPrice1 = 2099;
+        origin.PreClosePrice = 2099;
+        origin.PreSettlementPrice = 2104;
+
+        var gson = new GsonBuilder()
+                .setPrettyPrinting()
+                .setFieldNamingPolicy(FieldNamingPolicy.IDENTITY).create();
+
+        var book = new TickBook(origin, 1.0D, 0.5D);
+        book.setBuyChance(0.6);
+        for (int i = 0; i < 1000; ++i)
+            write(book.refresh().LastPrice);
+
+        book.setBuyChance(0.2);
+        for (int i = 0; i < 500; ++i)
+            write(book.refresh().LastPrice);
+
+        book.setBuyChance(0.8);
+        for (int i = 0; i < 500; ++i)
+            write(book.refresh().LastPrice);
     }
 
-    @Override
-    public void candleReceived(CThostFtdcCandleField candle) {
-
+    private static void write(double price) {
+        while (true)
+            try (PrintWriter pw = new PrintWriter(
+                    new FileWriter("last_price.txt", true))) {
+                pw.println(price);
+                pw.flush();
+                break;
+            } catch (IOException ignored) {
+            }
     }
 }

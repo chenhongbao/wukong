@@ -28,73 +28,64 @@
 
 package com.nabiki.wukong.sim;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.wukong.active.ActiveOrder;
-import com.nabiki.wukong.api.OrderProvider;
-import com.nabiki.wukong.api.WorkingState;
-import com.nabiki.wukong.tools.OrderMapper;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcReqUserLoginField;
+import com.nabiki.ctp4j.jni.struct.CThostFtdcUserLogoutField;
+import com.nabiki.ctp4j.md.CThostFtdcMdApi;
+import com.nabiki.ctp4j.md.CThostFtdcMdSpi;
 
-import java.util.List;
-
-/**
- * {@code SimOrderManager} provides simulation for order insertion and action.
- * The simulation account has an account ID with suffix {@code 'S'}. When the user
- * is initialized, its account ID is checked to decide whether the user is a real
- * trader or simulated trader.
- *
- * <p>The simulated trader is initialized with simulation order manager, and the
- * real trader has CTP order manager.
- * </p>
- */
-public class SimOrderProvider implements OrderProvider {
+public class SimMdApi extends CThostFtdcMdApi {
     @Override
-    public OrderMapper getMapper() {
+    public String GetApiVersion() {
         return null;
     }
 
     @Override
-    public int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active) {
-        return 0;
-    }
-
-    @Override
-    public int sendOrderAction(CThostFtdcInputOrderActionField action, ActiveOrder alive) {
-        return 0;
-    }
-
-    @Override
-    public List<String> getInstruments() {
+    public String GetTradingDay() {
         return null;
     }
 
     @Override
-    public void initialize() {
+    public void Init() {
 
     }
 
     @Override
-    public void release() {
+    public void Join() {
 
     }
 
     @Override
-    public void login() {
+    public void RegisterFront(String frontAddress) {
 
     }
 
     @Override
-    public void logout() {
+    public void RegisterSpi(CThostFtdcMdSpi spi) {
 
     }
 
-    /**
-     * Get working state.
-     *
-     * @return always {@link WorkingState#STARTED}
-     */
     @Override
-    public WorkingState getWorkingState() {
-        return WorkingState.STARTED;
+    public void Release() {
+
+    }
+
+    @Override
+    public int ReqUserLogin(CThostFtdcReqUserLoginField reqUserLoginField, int requestID) {
+        return 0;
+    }
+
+    @Override
+    public int ReqUserLogout(CThostFtdcUserLogoutField userLogout, int requestID) {
+        return 0;
+    }
+
+    @Override
+    public int SubscribeMarketData(String[] instrumentID, int count) {
+        return 0;
+    }
+
+    @Override
+    public int UnSubscribeMarketData(String[] instrumentID, int count) {
+        return 0;
     }
 }

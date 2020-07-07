@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.api;
+package com.nabiki.wukong.ctp;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;

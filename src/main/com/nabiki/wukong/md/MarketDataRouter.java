@@ -29,7 +29,7 @@
 package com.nabiki.wukong.md;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.api.MarketDataReceiver;
+import com.nabiki.wukong.ctp.MarketDataReceiver;
 import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;
 import com.nabiki.wukong.tools.OP;
 
