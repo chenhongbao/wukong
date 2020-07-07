@@ -26,13 +26,14 @@
  * SOFTWARE.
  */
 
-package com.nabiki.wukong.md.plain;
+package com.nabiki.wukong.md;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
+import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;
 import com.nabiki.wukong.tools.OP;
 
 public class CandleProgress {
-    private final Candle candle = new Candle();
+    private final CThostFtdcCandleField candle = new CThostFtdcCandleField();
 
     private int lastVolume = 0, lastVolumeUpdated = 0;
     private double lastClosePrice = 0.0D;
@@ -69,7 +70,7 @@ public class CandleProgress {
         this.lastVolumeUpdated = md.Volume;
     }
 
-    public Candle peak(String tradingDay) {
+    public CThostFtdcCandleField peak(String tradingDay) {
         synchronized (this.candle) {
             if (this.popped) {
                 // Not updated since last pop.
@@ -86,7 +87,7 @@ public class CandleProgress {
         }
     }
 
-    public Candle pop(String tradingDay) {
+    public CThostFtdcCandleField pop(String tradingDay) {
         var r = peak(tradingDay);
         this.lastVolume = this.lastVolumeUpdated;
         this.lastVolumeUpdated = 0;

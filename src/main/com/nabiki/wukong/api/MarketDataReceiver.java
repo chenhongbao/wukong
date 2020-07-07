@@ -29,14 +29,10 @@
 package com.nabiki.wukong.api;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.md.plain.Candle;
+import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;
 
-import java.util.Collection;
+public interface MarketDataReceiver {
+    void depthReceived(CThostFtdcDepthMarketDataField depth);
 
-public interface MarketDateRouter {
-    void route(CThostFtdcDepthMarketDataField md);
-
-    void route(Candle cnd);
-
-    void route(Collection<Candle> cnds);
+    void candleReceived(CThostFtdcCandleField candle);
 }

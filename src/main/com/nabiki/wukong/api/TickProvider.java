@@ -29,6 +29,7 @@
 package com.nabiki.wukong.api;
 
 import com.nabiki.wukong.md.CandleEngine;
+import com.nabiki.wukong.md.MarketDataRouter;
 import com.nabiki.wukong.tools.InTeam;
 
 import java.util.List;
@@ -38,7 +39,7 @@ public interface TickProvider {
     void register(CandleEngine engine);
 
     @InTeam
-    void register(MarketDateRouter router);
+    void register(MarketDataRouter router);
 
     void subscribe(List<String> instr);
 

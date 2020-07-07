@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="wukong-iop">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/wukong-iop.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/lib/wukong-iop.jar!/" />
+    </SOURCES>
+  </library>
+</component>

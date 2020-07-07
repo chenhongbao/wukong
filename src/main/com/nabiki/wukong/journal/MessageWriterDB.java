@@ -93,7 +93,7 @@ public class MessageWriterDB {
 
         @Override
         public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
+            while (!Thread.interrupted()) {
                 lck.lock();
                 try {
                     while (orders.size() == 0 && trades.size() == 0)

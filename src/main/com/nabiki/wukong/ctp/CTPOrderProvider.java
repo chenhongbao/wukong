@@ -668,10 +668,10 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
 
         @Override
         public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
+            while (!Thread.interrupted()) {
                 lck.lock();
                 try {
-                    if (pendingOrders.isEmpty())
+                    while (pendingOrders.isEmpty())
                         cond.await(1, TimeUnit.SECONDS);
                     // Await time out, or notified by new request.
                     int sendCnt = 0;

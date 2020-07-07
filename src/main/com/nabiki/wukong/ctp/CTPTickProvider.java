@@ -31,12 +31,12 @@ package com.nabiki.wukong.ctp;
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.md.CThostFtdcMdApi;
 import com.nabiki.ctp4j.md.CThostFtdcMdSpi;
-import com.nabiki.wukong.api.MarketDateRouter;
 import com.nabiki.wukong.api.WorkingState;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
 import com.nabiki.wukong.journal.MessageWriter;
 import com.nabiki.wukong.md.CandleEngine;
+import com.nabiki.wukong.md.MarketDataRouter;
 import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 
@@ -45,12 +45,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukong.api.TickProvider {
+public class CTPTickProvider extends CThostFtdcMdSpi
+        implements com.nabiki.wukong.api.TickProvider {
     private final Config config;
     private final LoginConfig loginCfg;
     private final CThostFtdcMdApi mdApi;
     private final MessageWriter flowWrt;
-    private final Set<MarketDateRouter> routers = new HashSet<>();
+    private final Set<MarketDataRouter> routers = new HashSet<>();
     private final Set<CandleEngine> engines = new HashSet<>();
 
     private boolean isConnected = false,
@@ -75,7 +76,7 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
 
     @Override
     @InTeam
-    public void register(MarketDateRouter router) {
+    public void register(MarketDataRouter router) {
         synchronized (this.routers) {
             this.routers.add(router);
         }
@@ -197,7 +198,11 @@ public class CTPTickProvider extends CThostFtdcMdSpi implements com.nabiki.wukon
                         reason));
         this.isLogin = false;
         this.isConnected = false;
-        setWorking(false);
+        // If disconnected when or after provider stops, candle engine isn't working.
+        // But if disconnected in work time, it is still working.
+        if (this.workingState == WorkingState.STOPPING
+                || this.workingState == WorkingState.STOPPED)
+            setWorking(false);
     }
 
     @Override

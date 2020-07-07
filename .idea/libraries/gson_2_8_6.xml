@@ -4,6 +4,8 @@
       <root url="jar://$PROJECT_DIR$/lib/gson-2.8.6.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/lib/gson-2.8.6.jar!/" />
+    </SOURCES>
   </library>
 </component>

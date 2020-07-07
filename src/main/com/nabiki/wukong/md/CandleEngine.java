@@ -29,9 +29,8 @@
 package com.nabiki.wukong.md;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.api.MarketDateRouter;
 import com.nabiki.wukong.cfg.Config;
-import com.nabiki.wukong.md.plain.Candle;
+import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;
 import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 
@@ -48,7 +47,7 @@ public class CandleEngine extends TimerTask {
     private final Config config;
     private final Timer timer = new Timer();
     private final Map<String, Product> products = new ConcurrentHashMap<>();
-    private final Set<MarketDateRouter> routers = new HashSet<>();
+    private final Set<MarketDataRouter> routers = new HashSet<>();
     private final Duration[] durations = new Duration[] {
             Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15),
             Duration.ofMinutes(30), Duration.ofHours(1), Duration.ofHours(2),
@@ -105,7 +104,7 @@ public class CandleEngine extends TimerTask {
     }
 
     @InTeam
-    public void registerRouter(MarketDateRouter router) {
+    public void registerRouter(MarketDataRouter router) {
         if (router != null)
             synchronized (this.routers) {
                 this.routers.add(router);
@@ -161,10 +160,10 @@ public class CandleEngine extends TimerTask {
             }
         }
 
-        public Set<Candle> peak(Duration du) {
+        public Set<CThostFtdcCandleField> peak(Duration du) {
             if (du == null)
                 throw new NullPointerException("duration null");
-            var r = new HashSet<Candle>();
+            var r = new HashSet<CThostFtdcCandleField>();
             synchronized (this.candles) {
                 for (var c : this.candles.values())
                     r.add(c.peak(du, config.getTradingDay()));
@@ -172,10 +171,10 @@ public class CandleEngine extends TimerTask {
             return r;
         }
 
-        public Set<Candle> pop(Duration du) {
+        public Set<CThostFtdcCandleField> pop(Duration du) {
             if (du == null)
                 throw new IllegalArgumentException("duration null");
-            var r = new HashSet<Candle>();
+            var r = new HashSet<CThostFtdcCandleField>();
             synchronized (this.candles) {
                 for (var c : this.candles.values())
                     r.add(c.pop(du, config.getTradingDay()));

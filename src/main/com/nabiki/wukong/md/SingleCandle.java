@@ -29,8 +29,7 @@
 package com.nabiki.wukong.md;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
-import com.nabiki.wukong.md.plain.Candle;
-import com.nabiki.wukong.md.plain.CandleProgress;
+import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -62,7 +61,7 @@ public class SingleCandle {
         }
     }
 
-    Candle peak(Duration du, String tradingDay) {
+    CThostFtdcCandleField peak(Duration du, String tradingDay) {
         synchronized (this.progress) {
             if (this.progress.containsKey(du))
                 return this.progress.get(du).peak(tradingDay);
@@ -71,7 +70,7 @@ public class SingleCandle {
         }
     }
 
-    Candle pop(Duration du, String tradingDay) {
+    CThostFtdcCandleField pop(Duration du, String tradingDay) {
         synchronized (this.progress) {
             if (this.progress.containsKey(du))
                 return this.progress.get(du).pop(tradingDay);
