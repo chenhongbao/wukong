@@ -48,10 +48,10 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * {@code AliveOrderManager} keeps the status of all alive orders, interacts with
@@ -67,11 +67,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     private final Thread orderDaemon = new Thread(new OrderDaemon());
     private final Timer qryTimer = new Timer();
     private final List<String> instrs = new LinkedList<>();
-
-    // Order and signals.
-    private final ReentrantLock lck = new ReentrantLock();
-    private final Condition cond = lck.newCondition();
-    private final List<PendingOrder> pendingOrders = new LinkedList<>();
+    private final BlockingQueue<PendingOrder> pendingOrders;
 
     private boolean isConfirmed = false,
             isConnected = false,
@@ -85,6 +81,7 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         this.config = cfg;
         this.loginCfg = this.config.getLoginConfigs().get("trader");
         this.flowWrt = new MessageWriter(this.config);
+        this.pendingOrders = new LinkedBlockingQueue<>();
         this.traderApi = CThostFtdcTraderApi.CreateFtdcTraderApi(
                 this.loginCfg.flowDirectory);
         // Start query timer task.
@@ -187,20 +184,18 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
      * @return always return 0
      */
     @Override
-    public int sendDetailOrder(CThostFtdcInputOrderField detail, ActiveOrder active) {
+    public int sendDetailOrder(CThostFtdcInputOrderField detail,
+                               ActiveOrder active) {
         if (isOver(detail.InstrumentID)) {
             rspError(detail, TThostFtdcErrorCode.FRONT_NOT_ACTIVE,
                     TThostFtdcErrorMessage.FRONT_NOT_ACTIVE);
+            return (-1);
         } else {
-            this.lck.lock();
-            try {
-                this.pendingOrders.add(new PendingOrder(detail, active));
-                this.cond.signal();
-            } finally {
-                this.lck.unlock();
-            }
+            if (!this.pendingOrders.offer(new PendingOrder(detail, active)))
+                return (-2);
+            else
+                return 0;
         }
-        return 0;
     }
 
     private void rspError(CThostFtdcInputOrderField order, int code,
@@ -265,16 +260,13 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
         if (isOver(action.InstrumentID)) {
             rspError(action, TThostFtdcErrorCode.FRONT_NOT_ACTIVE,
                     TThostFtdcErrorMessage.FRONT_NOT_ACTIVE);
+            return (-1);
         } else {
-            this.lck.lock();
-            try {
-                this.pendingOrders.add(new PendingOrder(action, active));
-                this.cond.signal();
-            } finally {
-                this.lck.unlock();
-            }
+            if (!this.pendingOrders.offer(new PendingOrder(action, active)))
+                return (-2);
+            else
+                return 0;
         }
-        return 0;
     }
 
     @Override
@@ -452,8 +444,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
     @Override
     public void OnFrontDisconnected(int reason) {
         this.config.getLogger().warning(
-                OP.formatLog("trader disconnected", null, null,
-                        reason));
+                OP.formatLog("trader disconnected", null,
+                        null, reason));
         this.isConnected = false;
         this.isConfirmed = false;
     }
@@ -608,8 +600,8 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
             doRspLogin(rspUserLogin);
         } else {
             this.config.getLogger().severe(
-                    OP.formatLog("failed login", null, rspInfo.ErrorMsg,
-                            rspInfo.ErrorID));
+                    OP.formatLog("failed login", null,
+                            rspInfo.ErrorMsg, rspInfo.ErrorID));
             this.flowWrt.writeErr(rspInfo);
         }
     }
@@ -668,39 +660,43 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
 
         @Override
         public void run() {
+            int sendCnt = 0;
+            long threshold = TimeUnit.SECONDS.toMillis(1);
+            long timeStamp = System.currentTimeMillis();
             while (!Thread.interrupted()) {
-                lck.lock();
                 try {
-                    while (pendingOrders.isEmpty())
-                        cond.await(1, TimeUnit.SECONDS);
+                    PendingOrder pend = null;
+                    while (pend == null)
+                        pend = pendingOrders.poll(1, TimeUnit.DAYS);
                     // Await time out, or notified by new request.
-                    int sendCnt = 0;
-                    var iter = pendingOrders.listIterator();
-                    while (iter.hasNext()) {
-                        var pend = iter.next();
-                        // Instrument not trading.
-                        if (!isTrading(getInstrID(pend)))
-                            continue;
-                        int r = 0;
-                        // Send order or action.
-                        if (pend.action != null) {
-                            flowWrt.writeReq(pend.action);
-                            r = fillAndSendAction(pend.action);
-                        } else if (pend.order != null) {
-                            flowWrt.writeReq(pend.order);
-                            mapper.register(pend.order, pend.active);
-                            r = fillAndSendOrder(pend.order);
+                    // Instrument not trading.
+                    if (!isTrading(getInstrID(pend)))
+                        continue;
+                    int r = 0;
+                    // Send order or action.
+                    if (pend.action != null) {
+                        flowWrt.writeReq(pend.action);
+                        r = fillAndSendAction(pend.action);
+                    } else if (pend.order != null) {
+                        flowWrt.writeReq(pend.order);
+                        mapper.register(pend.order, pend.active);
+                        r = fillAndSendOrder(pend.order);
+                    }
+                    // Check send ret code.
+                    if (r != 0)
+                        warn(r, pend);
+                    // Flow control.
+                    long curTimeStamp = System.currentTimeMillis();
+                    long diffTimeStamp = threshold - (curTimeStamp - timeStamp);
+                    if (diffTimeStamp > 0) {
+                        ++sendCnt;
+                        if (sendCnt > MAX_REQ_PER_SEC) {
+                            Thread.sleep(diffTimeStamp);
+                            timeStamp = System.currentTimeMillis();
                         }
-                        // Remove the visited request.
-                        iter.remove();
-                        // Check send ret code.
-                        if (r != 0)
-                            warn(r, pend);
-                        // Flow control.
-                        if (++sendCnt > MAX_REQ_PER_SEC) {
-                            Thread.sleep(TimeUnit.SECONDS.toMillis(1));
-                            break;
-                        }
+                    } else {
+                        sendCnt = 0;
+                        timeStamp = System.currentTimeMillis();
                     }
                 } catch (InterruptedException e) {
                     if (workingState == WorkingState.STOPPING
@@ -711,8 +707,6 @@ public class CTPOrderProvider extends CThostFtdcTraderSpi implements OrderProvid
                                 OP.formatLog("order daemon interrupted",
                                         null, e.getMessage(),
                                         null));
-                } finally {
-                    lck.unlock();
                 }
             }
         }
