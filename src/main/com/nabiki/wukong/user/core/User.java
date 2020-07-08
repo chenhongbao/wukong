@@ -28,6 +28,7 @@
 
 package com.nabiki.wukong.user.core;
 
+import com.nabiki.ctp4j.jni.struct.CThostFtdcRspInfoField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
 import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OutTeam;
@@ -38,8 +39,8 @@ import com.nabiki.wukong.user.plain.UserState;
 public class User {
     private UserPosition position;
     private UserAccount account;
-
     private UserState state = UserState.RENEW;
+    private final CThostFtdcRspInfoField panicReason = new CThostFtdcRspInfoField();
 
     public User() {}
 
@@ -66,6 +67,18 @@ public class User {
         total.Available = total.Balance - total.FrozenMargin
                 - total.FrozenCommission - total.FrozenCash;
         return total;
+    }
+
+    @InTeam
+    public void setPanic(int code, String msg) {
+        this.state = UserState.PANIC;
+        this.panicReason.ErrorID = code;
+        this.panicReason.ErrorMsg = msg;
+    }
+
+    @InTeam
+    CThostFtdcRspInfoField getPanicReason() {
+        return this.panicReason;
     }
 
     @InTeam

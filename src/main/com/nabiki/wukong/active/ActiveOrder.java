@@ -30,17 +30,16 @@ package com.nabiki.wukong.active;
 
 import com.nabiki.ctp4j.jni.flag.TThostFtdcCombOffsetFlagType;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorCode;
+import com.nabiki.ctp4j.jni.flag.TThostFtdcErrorMessage;
 import com.nabiki.ctp4j.jni.flag.TThostFtdcOrderStatusType;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderActionField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcTradeField;
+import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.plain.InstrumentInfo;
 import com.nabiki.wukong.ctp.OrderProvider;
 import com.nabiki.wukong.tools.InTeam;
 import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.core.*;
+import com.nabiki.wukong.user.plain.UserState;
 
 import java.util.*;
 
@@ -56,7 +55,7 @@ public class ActiveOrder {
     private final CThostFtdcInputOrderField order;
     private final CThostFtdcInputOrderActionField action;
 
-    private Integer retCode;
+    private final CThostFtdcRspInfoField execRsp = new CThostFtdcRspInfoField();
 
     ActiveOrder(CThostFtdcInputOrderField order, User user, OrderProvider mgr,
                 Config cfg) {
@@ -104,6 +103,19 @@ public class ActiveOrder {
     void execOrder() {
         if (this.order == null)
             throw new IllegalStateException("no order to execute");
+        // If the user is panic, some internal error occurred. Don't trade again.
+        var usrState = this.userAccount.getParent().getState();
+        if ( usrState== UserState.PANIC) {
+            this.execRsp.ErrorID = TThostFtdcErrorCode.INCONSISTENT_INFORMATION;
+            this.execRsp.ErrorMsg = "internal error caused account panic";
+            return;
+        }
+        // User is settled, but not inited for next day.
+        if ( usrState== UserState.SETTLED) {
+            this.execRsp.ErrorID = TThostFtdcErrorCode.NOT_INITED;
+            this.execRsp.ErrorMsg = TThostFtdcErrorMessage.NOT_INITED;
+            return;
+        }
         var instrInfo = this.config.getInstrInfo(this.order.InstrumentID);
         Objects.requireNonNull(instrInfo, "instr info null");
         if (this.order.CombOffsetFlag == TThostFtdcCombOffsetFlagType.OFFSET_OPEN)
@@ -114,7 +126,7 @@ public class ActiveOrder {
 
     void execAction() {
         if (this.action == null)
-            throw new IllegalStateException("no order to execute");
+            throw new IllegalStateException("no action to execute");
     }
 
     private void insertOpen(CThostFtdcInputOrderField order,
@@ -125,10 +137,11 @@ public class ActiveOrder {
         this.frozenAccount = this.userAccount.getOpenFrozen(this.order,
                 instrInfo.instrument, instrInfo.margin, instrInfo.commission);
         if (this.frozenAccount == null) {
-            this.retCode = TThostFtdcErrorCode.INSUFFICIENT_MONEY;
+            this.execRsp.ErrorID = TThostFtdcErrorCode.INSUFFICIENT_MONEY;
+            this.execRsp.ErrorMsg = TThostFtdcErrorMessage.INSUFFICIENT_MONEY;
         } else {
-            this.retCode = this.orderMgr.sendDetailOrder(order, this);
-            if (this.retCode == 0)
+            this.execRsp.ErrorID = this.orderMgr.sendDetailOrder(order, this);
+            if (this.execRsp.ErrorID == 0)
                 // Apply frozen account to parent account.
                 this.frozenAccount.setFrozen();
         }
@@ -141,7 +154,8 @@ public class ActiveOrder {
         var pds = this.userPos.peakCloseFrozen(order, instrInfo.instrument,
                 instrInfo.commission, this.config.getTradingDay());
         if (pds == null || pds.size() == 0) {
-            this.retCode = TThostFtdcErrorCode.OVER_CLOSE_POSITION;
+            this.execRsp.ErrorID = TThostFtdcErrorCode.OVER_CLOSE_POSITION;
+            this.execRsp.ErrorMsg = TThostFtdcErrorMessage.OVER_CLOSE_POSITION;
             return;
         }
         Set<String> refs = new HashSet<>();
@@ -149,17 +163,17 @@ public class ActiveOrder {
         // Send close request.
         for (var p : pds) {
             var x = this.orderMgr.sendDetailOrder(toCloseOrder(p), this);
-            // Map order reference to frozen position.
-            var ref = findRef(refs,
-                    this.orderMgr.getMapper().getDetailRef(getOrderUUID()));
-            this.frozenPD.put(ref, p);
-            // Update used ref.
-            refs.add(ref);
             if (x == 0) {
+                // Map order reference to frozen position.
+                var ref = findRef(refs,
+                        this.orderMgr.getMapper().getDetailRef(getOrderUUID()));
+                this.frozenPD.put(ref, p);
+                // Update used ref.
+                refs.add(ref);
                 // Apply frozen position to parent position.
                 p.setFrozen();
             } else {
-                this.retCode = x;
+                this.execRsp.ErrorID = x;
                 break;
             }
         }
@@ -174,7 +188,10 @@ public class ActiveOrder {
                 return s;
         }
         this.config.getLogger().warning(
-                "order ref for new detailed order not found");
+                "new order ref not found");
+        this.userAccount.getParent()
+                .setPanic(TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                "new order ref not found");
         return null;
     }
 
@@ -184,8 +201,8 @@ public class ActiveOrder {
     }
 
     @InTeam
-    public Integer getRetCode() {
-        return this.retCode;
+    public CThostFtdcRspInfoField getExecRsp() {
+        return this.execRsp;
     }
 
     private CThostFtdcInputOrderField toCloseOrder(FrozenPositionDetail pd) {
@@ -220,6 +237,9 @@ public class ActiveOrder {
                     this.config.getLogger().severe(
                             OP.formatLog("no frozen cash",
                                     rtn.OrderRef, null, null));
+                    this.userAccount.getParent().setPanic(
+                            TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                            "frozen cash null");
                     return;
                 }
                 this.frozenAccount.cancel();
@@ -228,6 +248,9 @@ public class ActiveOrder {
                     this.config.getLogger().severe(
                             OP.formatLog("no frozen position",
                                     rtn.OrderRef, null, null));
+                    this.userAccount.getParent().setPanic(
+                            TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                            "frozen position null");
                     return;
                 }
                 // Cancel position.
@@ -236,6 +259,9 @@ public class ActiveOrder {
                     this.config.getLogger().severe(
                             OP.formatLog("frozen position not found",
                                     rtn.OrderRef, null, null));
+                    this.userAccount.getParent().setPanic(
+                            TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                            "frozen position not found for order ref");
                     return;
                 }
                 p.cancel();
@@ -268,6 +294,9 @@ public class ActiveOrder {
                 this.config.getLogger().severe(
                         OP.formatLog("no frozen cash",
                                 trade.OrderRef, null, null));
+                this.userAccount.getParent().setPanic(
+                        TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                        "frozen cash null");
                 return;
             }
             var depth = this.config.getDepthMarketData(trade.InstrumentID);
@@ -284,6 +313,9 @@ public class ActiveOrder {
                 this.config.getLogger().severe(
                         OP.formatLog("no frozen position",
                                 trade.OrderRef, null, null));
+                this.userAccount.getParent().setPanic(
+                        TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                        "frozen position null");
                 return;
             }
             // Update user position, frozen position and user cash.
@@ -292,12 +324,18 @@ public class ActiveOrder {
                 this.config.getLogger().severe(
                         OP.formatLog("frozen position not found",
                                 trade.OrderRef, null, null));
+                this.userAccount.getParent().setPanic(
+                        TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                        "frozen position not found for order ref");
                 return;
             }
             if (p.getFrozenShareCount() < trade.Volume) {
                 this.config.getLogger().severe(
                         OP.formatLog("not enough frozen position",
                                 trade.OrderRef, null, null));
+                this.userAccount.getParent().setPanic(
+                        TThostFtdcErrorCode.OVER_CLOSE_POSITION,
+                        "not enough frozen position for trade");
                 return;
             }
             // Check the frozen position OK, here won't throw exception.

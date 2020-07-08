@@ -28,10 +28,7 @@
 
 package com.nabiki.wukong.active;
 
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcInvestorPositionField;
-import com.nabiki.ctp4j.jni.struct.CThostFtdcTradingAccountField;
-import com.nabiki.ctp4j.jni.struct.TThostFtdcPosiDirectionType;
+import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.ctp.OrderProvider;
 import com.nabiki.wukong.tools.InTeam;
@@ -86,6 +83,15 @@ public class ActiveUser {
             infoSet.setCommission(instr, instrInfo.commission);
         }
         this.user.settle(prices, infoSet, this.config.getTradingDay());
+    }
+
+    @OutTeam
+    public CThostFtdcRspInfoField getExecRsp(UUID uuid) {
+        var active = this.orders.get(uuid);
+        if (active == null)
+            return null;
+        else
+            return active.getExecRsp();
     }
 
     @OutTeam

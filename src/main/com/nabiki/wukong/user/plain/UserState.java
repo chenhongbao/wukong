@@ -29,5 +29,5 @@
 package com.nabiki.wukong.user.plain;
 
 public enum UserState {
-    SETTLED, RENEW
+    SETTLED, RENEW, PANIC
 }
