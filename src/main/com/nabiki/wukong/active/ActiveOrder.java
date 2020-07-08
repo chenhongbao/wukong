@@ -304,7 +304,8 @@ public class ActiveOrder {
             }
             var depth = this.config.getDepthMarketData(trade.InstrumentID);
             Objects.requireNonNull(depth, "depth market data null");
-            // Update frozen cash and user position.
+            // Update frozen account, user account and user position.
+            // The frozen account handles the update of user account.
             this.frozenAccount.updateOpenTrade(trade, instrInfo.instrument,
                     instrInfo.commission);
             this.userPos.updateOpenTrade(trade, instrInfo.instrument,
@@ -321,7 +322,8 @@ public class ActiveOrder {
                         "frozen position null");
                 return;
             }
-            // Update user position, frozen position and user cash.
+            // Update user position, frozen position and user account.
+            // The frozen position handles the update of user position.
             var p = this.frozenPD.get(trade.OrderRef);
             if (p == null) {
                 this.config.getLogger().severe(
