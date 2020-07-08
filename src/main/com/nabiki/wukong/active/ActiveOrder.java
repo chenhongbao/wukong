@@ -167,10 +167,16 @@ public class ActiveOrder {
                 // Map order reference to frozen position.
                 var ref = findRef(refs,
                         this.orderMgr.getMapper().getDetailRef(getOrderUUID()));
-                this.frozenPD.put(ref, p);
-                // Update used ref.
-                refs.add(ref);
+                if (ref != null) {
+                    this.frozenPD.put(ref, p);
+                    refs.add(ref);
+                } else
+                    this.userAccount.getParent().setPanic(
+                            TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
+                            "new order ref not found");
                 // Apply frozen position to parent position.
+                // Because the order has been sent, the position must be frozen to
+                // ensure no over-close position.
                 p.setFrozen();
             } else {
                 this.execRsp.ErrorID = x;
@@ -188,9 +194,6 @@ public class ActiveOrder {
                 return s;
         }
         this.config.getLogger().warning(
-                "new order ref not found");
-        this.userAccount.getParent()
-                .setPanic(TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
                 "new order ref not found");
         return null;
     }
