@@ -32,6 +32,9 @@ import com.nabiki.ctp4j.jni.struct.CThostFtdcDepthMarketDataField;
 import com.nabiki.wukong.ctp4j.jni.struct.CThostFtdcCandleField;
 import com.nabiki.wukong.tools.OP;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+
 public class CandleProgress {
     private final CThostFtdcCandleField candle = new CThostFtdcCandleField();
 
@@ -47,7 +50,8 @@ public class CandleProgress {
         synchronized (this.candle) {
             if (this.popped) {
                 this.candle.InstrumentID = md.InstrumentID;
-                this.candle.ActionDay = OP.getToday("yyyyMMdd");
+                this.candle.ActionDay
+                        = OP.getDay(LocalDate.now(), "yyyyMMdd");
                 this.candle.TradingDay = md.TradingDay;
                 this.candle.OpenPrice
                         = this.candle.HighestPrice
@@ -75,8 +79,10 @@ public class CandleProgress {
             if (this.popped) {
                 // Not updated since last pop.
                 this.candle.TradingDay = tradingDay;
-                this.candle.ActionDay = OP.getToday("yyyyMMdd");
-                this.candle.UpdateTime = OP.getTime("HH:mm:ss");
+                this.candle.ActionDay
+                        = OP.getDay(LocalDate.now(), "yyyyMMdd");
+                this.candle.UpdateTime
+                        = OP.getTime(LocalTime.now(), "HH:mm:ss");
                 this.candle.OpenPrice
                         = this.candle.ClosePrice
                         = this.candle.HighestPrice

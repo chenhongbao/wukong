@@ -234,34 +234,40 @@ public class OP {
      * Get today's string representation of the specified pattern. The pattern
      * follows the convention of {@link DateTimeFormatter}.
      *
+     * @param day {@link LocalDate} to convert
      * @param pattern pattern
      * @return today's string representation
      */
     @OutTeam
-    public static String getToday(String pattern) {
+    public static String getDay(LocalDate day, String pattern) {
+        if (day == null)
+            throw new NullPointerException("day null");
         if (pattern == null || pattern.trim().length() == 0)
             pattern = dayPatternStr;
         if (pattern.compareTo(dayPatternStr) == 0)
-            return LocalDate.now().format(dayPattern);
+            return day.format(dayPattern);
         else
-            return LocalDate.now().format(DateTimeFormatter.ofPattern(pattern));
+            return day.format(DateTimeFormatter.ofPattern(pattern));
     }
 
     /**
      * Get now' time representation of the specified pattern. The pattern
      * follows the convention of {@link DateTimeFormatter}.
      *
+     * @param time {@link LocalTime} to convert
      * @param pattern pattern
      * @return today's string representation
      */
     @OutTeam
-    public static String getTime(String pattern) {
+    public static String getTime(LocalTime time, String pattern) {
+        if (time == null)
+            throw new NullPointerException("time null");
         if (pattern == null || pattern.trim().length() == 0)
             pattern = timePatternStr;
         if (pattern.compareTo(timePatternStr) == 0)
-            return LocalTime.now().format(timePattern);
+            return time.format(timePattern);
         else
-            return LocalTime.now().format(DateTimeFormatter.ofPattern(pattern));
+            return time.format(DateTimeFormatter.ofPattern(pattern));
     }
 
     /**
