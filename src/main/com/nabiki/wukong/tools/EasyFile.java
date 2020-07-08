@@ -148,6 +148,21 @@ public class EasyFile {
         }
     }
 
+    private String concatPath(String... ps) {
+        String r = "";
+        switch (ps.length) {
+            case 0:
+                return r;
+            case 1:
+                return ps[0];
+            default:
+                r = ps[0];
+                for (int  i = 1; i < ps.length; ++i)
+                    r += "/" + ps[i];
+                return r;
+        }
+    }
+
     /**
      * Create sub directory with the specified path. The {@code key} is a key in map
      * that associates {@code key} with object.
@@ -163,12 +178,12 @@ public class EasyFile {
      * failed creating the directory, or this file object is not a directory
      */
     @OutTeam
-    public EasyFile setDirectory(String key, String relPath) throws IOException {
+    public EasyFile setDirectory(String key, String... relPath) throws IOException {
         checkDir();
         this.files.put(key, new EasyFile(
                 Path.of(this.path, relPath).toAbsolutePath().toString(),
                 false));
-        writeIndex(key, relPath);
+        writeIndex(key, concatPath(relPath));
         return this;
     }
 
@@ -183,12 +198,12 @@ public class EasyFile {
      * creating the file, or this file object is not a directory
      */
     @OutTeam
-    public EasyFile setFile(String key, String relPath) throws IOException {
+    public EasyFile setFile(String key, String... relPath) throws IOException {
         checkDir();
         this.files.put(key, new EasyFile(
                 Path.of(this.path, relPath).toAbsolutePath().toString(),
                 true));
-        writeIndex(key, relPath);
+        writeIndex(key, concatPath(relPath));
         return this;
     }
 
