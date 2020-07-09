@@ -47,13 +47,13 @@ import java.util.*;
 public class ActiveUser {
     private final User user;
     private final Config config;
-    private final OrderProvider orderMgr;
-    private final Map<UUID, ActiveOrder> orders = new HashMap<>();
+    private final OrderProvider orderProvider;
+    private final Map<UUID, ActiveRequest> requests = new HashMap<>();
 
-    public ActiveUser(User user, OrderProvider orderMgr, Config cfg) {
+    public ActiveUser(User user, OrderProvider orderProvider, Config cfg) {
         this.user = user;
         this.config = cfg;
-        this.orderMgr = orderMgr;
+        this.orderProvider = orderProvider;
     }
 
     @InTeam
@@ -87,7 +87,7 @@ public class ActiveUser {
 
     @OutTeam
     public CThostFtdcRspInfoField getExecRsp(UUID uuid) {
-        var active = this.orders.get(uuid);
+        var active = this.requests.get(uuid);
         if (active == null)
             return null;
         else
@@ -96,13 +96,28 @@ public class ActiveUser {
 
     @OutTeam
     public UUID insertOrder(CThostFtdcInputOrderField order) {
-        var active = new ActiveOrder(order, this.user, this.orderMgr, this.config);
-        this.orders.put(active.getOrderUUID(), active);
+        var active = new ActiveRequest(order, this.user, this.orderProvider, this.config);
+        this.requests.put(active.getOrderUUID(), active);
         try {
             active.execOrder();
         } catch (Throwable th) {
             this.config.getLogger().severe(
                     OP.formatLog("failed order insertion", order.UserID,
+                            th.getMessage(), null));
+        }
+        return active.getOrderUUID();
+    }
+
+    @OutTeam
+    public UUID orderAction(CThostFtdcInputOrderActionField action) {
+        var active = new ActiveRequest(action, this.user, this.orderProvider,
+                this.config);
+        this.requests.put(active.getOrderUUID(), active);
+        try {
+            active.execAction();
+        } catch (Throwable th) {
+            this.config.getLogger().severe(
+                    OP.formatLog("failed order action", action.UserID,
                             th.getMessage(), null));
         }
         return active.getOrderUUID();
@@ -122,11 +137,11 @@ public class ActiveUser {
     @OutTeam
     public Set<CThostFtdcInputOrderField> getDetailOrder(UUID uuid) {
         var r = new HashSet<CThostFtdcInputOrderField>();
-        var refs = this.orderMgr.getMapper().getDetailRef(uuid);
+        var refs = this.orderProvider.getMapper().getDetailRef(uuid);
         if (refs == null || refs.size() == 0)
             return r;
         for (var ref : refs) {
-            var o = this.orderMgr.getMapper().getDetailOrder(ref);
+            var o = this.orderProvider.getMapper().getDetailOrder(ref);
             if (o != null)
                 r.add(o);
         }
@@ -135,7 +150,7 @@ public class ActiveUser {
 
     @OutTeam
     public Map<String, FrozenPositionDetail> getFrozenPositionDetail(UUID uuid) {
-        var o = this.orders.get(uuid);
+        var o = this.requests.get(uuid);
         if (o != null)
             return o.getFrozenPosition();
         else
@@ -144,7 +159,7 @@ public class ActiveUser {
 
     @OutTeam
     public FrozenAccount getFrozenAccount(UUID uuid) {
-        var o = this.orders.get(uuid);
+        var o = this.requests.get(uuid);
         if (o != null)
             return o.getFrozenAccount();
         else

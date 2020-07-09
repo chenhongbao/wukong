@@ -32,7 +32,7 @@ import com.nabiki.ctp4j.jni.flag.*;
 import com.nabiki.ctp4j.jni.struct.*;
 import com.nabiki.ctp4j.trader.CThostFtdcTraderApi;
 import com.nabiki.ctp4j.trader.CThostFtdcTraderSpi;
-import com.nabiki.wukong.active.ActiveOrder;
+import com.nabiki.wukong.active.ActiveRequest;
 import com.nabiki.wukong.cfg.Config;
 import com.nabiki.wukong.cfg.ConfigLoader;
 import com.nabiki.wukong.cfg.plain.LoginConfig;
@@ -62,10 +62,10 @@ public class OrderProvider extends CThostFtdcTraderSpi {
     protected final LoginConfig loginCfg;
     protected final MessageWriter msgWriter;
     protected final CThostFtdcTraderApi traderApi;
-    protected final Thread orderDaemon = new Thread(new OrderDaemon());
+    protected final Thread orderDaemon = new Thread(new RequestDaemon());
     protected final Timer qryTimer = new Timer();
     protected final List<String> instruments = new LinkedList<>();
-    protected final BlockingQueue<PendingOrder> pendingOrders;
+    protected final BlockingQueue<PendingRequest> pendingReqs;
 
     protected boolean isConfirmed = false,
             isConnected = false,
@@ -80,7 +80,7 @@ public class OrderProvider extends CThostFtdcTraderSpi {
         this.traderApi = traderApi;
         this.loginCfg = this.config.getLoginConfigs().get("trader");
         this.msgWriter = new MessageWriter(this.config);
-        this.pendingOrders = new LinkedBlockingQueue<>();
+        this.pendingReqs = new LinkedBlockingQueue<>();
         // Start query timer task.
         this.qryTimer.scheduleAtFixedRate(new QueryTask(), 0, 3000);
         // Start order daemon.
@@ -181,13 +181,13 @@ public class OrderProvider extends CThostFtdcTraderSpi {
      */
     @InTeam
     public int sendDetailOrder(CThostFtdcInputOrderField detail,
-                               ActiveOrder active) {
+                               ActiveRequest active) {
         if (isOver(detail.InstrumentID)) {
             rspError(detail, TThostFtdcErrorCode.FRONT_NOT_ACTIVE,
                     TThostFtdcErrorMessage.FRONT_NOT_ACTIVE);
             return (-1);
         } else {
-            if (!this.pendingOrders.offer(new PendingOrder(detail, active)))
+            if (!this.pendingReqs.offer(new PendingRequest(detail, active)))
                 return (-2);
             else
                 return 0;
@@ -255,13 +255,13 @@ public class OrderProvider extends CThostFtdcTraderSpi {
      */
     @InTeam
     public int sendOrderAction(CThostFtdcInputOrderActionField action,
-                               ActiveOrder active) {
+                               ActiveRequest active) {
         if (isOver(action.InstrumentID)) {
             rspError(action, TThostFtdcErrorCode.FRONT_NOT_ACTIVE,
                     TThostFtdcErrorMessage.FRONT_NOT_ACTIVE);
             return (-1);
         } else {
-            if (!this.pendingOrders.offer(new PendingOrder(action, active)))
+            if (!this.pendingReqs.offer(new PendingRequest(action, active)))
                 return (-2);
             else
                 return 0;
@@ -271,6 +271,13 @@ public class OrderProvider extends CThostFtdcTraderSpi {
     @InTeam
     public List<String> getInstruments() {
         return new LinkedList<>(this.instruments);
+    }
+
+    @InTeam
+    public String getOrderRef() {
+        if (this.orderRef.get() == Integer.MAX_VALUE)
+            this.orderRef.set(0);
+        return String.valueOf(this.orderRef.incrementAndGet());
     }
 
     protected void doLogin() {
@@ -329,12 +336,6 @@ public class OrderProvider extends CThostFtdcTraderSpi {
         var maxOrderRef = Integer.parseInt(this.rspLogin.MaxOrderRef);
         if (maxOrderRef > this.orderRef.get())
             this.orderRef.set(maxOrderRef);
-    }
-
-    protected String getOrderRef() {
-        if (this.orderRef.get() == Integer.MAX_VALUE)
-            this.orderRef.set(0);
-        return String.valueOf(this.orderRef.incrementAndGet());
     }
 
     /*
@@ -636,25 +637,25 @@ public class OrderProvider extends CThostFtdcTraderSpi {
         doRtnTrade(trade);
     }
 
-    protected static class PendingOrder {
-        final ActiveOrder active;
+    protected static class PendingRequest {
+        final ActiveRequest active;
         final CThostFtdcInputOrderField order;
         final CThostFtdcInputOrderActionField action;
 
-        PendingOrder(CThostFtdcInputOrderField order, ActiveOrder active) {
+        PendingRequest(CThostFtdcInputOrderField order, ActiveRequest active) {
             this.order = order;
             this.action = null;
             this.active = active;
         }
 
-        PendingOrder(CThostFtdcInputOrderActionField action, ActiveOrder active) {
+        PendingRequest(CThostFtdcInputOrderActionField action, ActiveRequest active) {
             this.order = null;
             this.action = action;
             this.active = active;
         }
     }
 
-    protected class OrderDaemon implements Runnable {
+    protected class RequestDaemon implements Runnable {
         protected final int MAX_REQ_PER_SEC = 5;
 
         @Override
@@ -664,26 +665,35 @@ public class OrderProvider extends CThostFtdcTraderSpi {
             long timeStamp = System.currentTimeMillis();
             while (!Thread.interrupted()) {
                 try {
-                    PendingOrder pend = null;
+                    PendingRequest pend = null;
                     while (pend == null)
-                        pend = pendingOrders.poll(1, TimeUnit.DAYS);
+                        pend = pendingReqs.poll(1, TimeUnit.DAYS);
                     // Await time out, or notified by new request.
                     // Instrument not trading.
                     if (!isTrading(getInstrID(pend)))
                         continue;
                     int r = 0;
                     // Send order or action.
+                    // Fill and send order at first place so its fields are filled.
                     if (pend.action != null) {
-                        msgWriter.writeReq(pend.action);
                         r = fillAndSendAction(pend.action);
+                        if (r == 0)
+                            msgWriter.writeReq(pend.action);
                     } else if (pend.order != null) {
-                        msgWriter.writeReq(pend.order);
-                        mapper.register(pend.order, pend.active);
                         r = fillAndSendOrder(pend.order);
+                        if (r == 0) {
+                            msgWriter.writeReq(pend.order);
+                            mapper.register(pend.order, pend.active);
+                        }
                     }
                     // Check send ret code.
-                    if (r != 0)
+                    // If fail sending the request, add it back to queue and sleep
+                    // for some time.
+                    if (r != 0) {
                         warn(r, pend);
+                        pendingReqs.offer(pend);
+                        Thread.sleep(threshold);
+                    }
                     // Flow control.
                     long curTimeStamp = System.currentTimeMillis();
                     long diffTimeStamp = threshold - (curTimeStamp - timeStamp);
@@ -712,7 +722,6 @@ public class OrderProvider extends CThostFtdcTraderSpi {
 
         protected int fillAndSendOrder(CThostFtdcInputOrderField detail) {
             // Set correct users.
-            detail.OrderRef = getOrderRef();
             detail.BrokerID = rspLogin.BrokerID;
             detail.UserID = rspLogin.UserID;
             detail.InvestorID = rspLogin.UserID;
@@ -775,14 +784,14 @@ public class OrderProvider extends CThostFtdcTraderSpi {
             return isConfirmed && hour.contains(LocalTime.now());
         }
 
-        protected String getInstrID(PendingOrder pend) {
+        protected String getInstrID(PendingRequest pend) {
             if (pend.action != null)
                 return pend.action.InstrumentID;
             else
                 return pend.order.InstrumentID;
         }
 
-        protected void warn(int r, PendingOrder pend) {
+        protected void warn(int r, PendingRequest pend) {
             String ref, hint;
             if (pend.order != null) {
                 ref = pend.order.OrderRef;

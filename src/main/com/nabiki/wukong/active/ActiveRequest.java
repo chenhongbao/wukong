@@ -41,37 +41,40 @@ import com.nabiki.wukong.tools.OP;
 import com.nabiki.wukong.user.core.*;
 import com.nabiki.wukong.user.plain.UserState;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
-public class ActiveOrder {
+public class ActiveRequest {
     private FrozenAccount frozenAccount;
     private Map<String, FrozenPositionDetail> frozenPD;
 
     private final UUID uuid = UUID.randomUUID();
     private final UserAccount userAccount;
     private final UserPosition userPos;
-    private final OrderProvider orderMgr;
+    private final OrderProvider orderProvider;
     private final Config config;
     private final CThostFtdcInputOrderField order;
     private final CThostFtdcInputOrderActionField action;
 
     private final CThostFtdcRspInfoField execRsp = new CThostFtdcRspInfoField();
 
-    ActiveOrder(CThostFtdcInputOrderField order, User user, OrderProvider mgr,
-                Config cfg) {
+    ActiveRequest(CThostFtdcInputOrderField order, User user, OrderProvider mgr,
+                  Config cfg) {
         this.userAccount = user.getAccount();
         this.userPos = user.getPosition();
-        this.orderMgr = mgr;
+        this.orderProvider = mgr;
         this.config = cfg;
         this.order = order;
         this.action = null;
     }
 
-    ActiveOrder(CThostFtdcInputOrderActionField action, User user,
-                OrderProvider mgr, Config cfg) {
+    ActiveRequest(CThostFtdcInputOrderActionField action, User user,
+                  OrderProvider mgr, Config cfg) {
         this.userAccount = user.getAccount();
         this.userPos = user.getPosition();
-        this.orderMgr = mgr;
+        this.orderProvider = mgr;
         this.config = cfg;
         this.order = null;
         this.action = action;
@@ -127,6 +130,39 @@ public class ActiveOrder {
     void execAction() {
         if (this.action == null)
             throw new IllegalStateException("no action to execute");
+        if (this.action.OrderSysID == null || this.action.OrderSysID.length() < 1) {
+            this.execRsp.ErrorID = TThostFtdcErrorCode.BAD_ORDER_ACTION_FIELD;
+            this.execRsp.ErrorMsg = TThostFtdcErrorMessage.BAD_ORDER_ACTION_FIELD;
+            return;
+        }
+        var mapper = this.orderProvider.getMapper();
+        var refs = mapper.getDetailRef(UUID.fromString(this.action.OrderSysID));
+        if (refs == null || refs.size() < 1) {
+            this.execRsp.ErrorID = TThostFtdcErrorCode.ORDER_NOT_FOUND;
+            this.execRsp.ErrorMsg = TThostFtdcErrorMessage.ORDER_NOT_FOUND;
+            return;
+        }
+        for (var ref : refs) {
+            var rtn = mapper.getRtnOrder(ref);
+            var realAction = OP.deepCopy(this.action);
+            if (rtn == null) {
+                // User order ref.
+                realAction.OrderSysID = null;
+                realAction.OrderRef = ref;
+            } else {
+                if (rtn.OrderStatus == TThostFtdcOrderStatusType.CANCELED
+                        || rtn.OrderStatus == TThostFtdcOrderStatusType.ALL_TRADED)
+                    continue;
+                // Use order sys ID.
+                realAction.OrderSysID = rtn.OrderSysID;
+                realAction.OrderRef = null;
+            }
+            var r = this.orderProvider.sendOrderAction(realAction, this);
+            if (r != 0) {
+                this.execRsp.ErrorID = r;
+                break;
+            }
+        }
     }
 
     private void insertOpen(CThostFtdcInputOrderField order,
@@ -140,7 +176,10 @@ public class ActiveOrder {
             this.execRsp.ErrorID = TThostFtdcErrorCode.INSUFFICIENT_MONEY;
             this.execRsp.ErrorMsg = TThostFtdcErrorMessage.INSUFFICIENT_MONEY;
         } else {
-            this.execRsp.ErrorID = this.orderMgr.sendDetailOrder(order, this);
+            // Set valid order ref.
+            order.OrderRef = this.orderProvider.getOrderRef();
+            this.execRsp.ErrorID
+                    = this.orderProvider.sendDetailOrder(order, this);
             if (this.execRsp.ErrorID == 0)
                 // Apply frozen account to parent account.
                 this.frozenAccount.setFrozen();
@@ -158,22 +197,15 @@ public class ActiveOrder {
             this.execRsp.ErrorMsg = TThostFtdcErrorMessage.OVER_CLOSE_POSITION;
             return;
         }
-        Set<String> refs = new HashSet<>();
         this.frozenPD = new HashMap<>();
         // Send close request.
         for (var p : pds) {
-            var x = this.orderMgr.sendDetailOrder(toCloseOrder(p), this);
+            var cls = toCloseOrder(p);
+            cls.OrderRef = this.orderProvider.getOrderRef();
+            var x = this.orderProvider.sendDetailOrder(cls, this);
             if (x == 0) {
                 // Map order reference to frozen position.
-                var ref = findRef(refs,
-                        this.orderMgr.getMapper().getDetailRef(getOrderUUID()));
-                if (ref != null) {
-                    this.frozenPD.put(ref, p);
-                    refs.add(ref);
-                } else
-                    this.userAccount.getParent().setPanic(
-                            TThostFtdcErrorCode.INCONSISTENT_INFORMATION,
-                            "new order ref not found");
+                this.frozenPD.put(cls.OrderRef, p);
                 // Apply frozen position to parent position.
                 // Because the order has been sent, the position must be frozen to
                 // ensure no over-close position.
@@ -183,19 +215,6 @@ public class ActiveOrder {
                 break;
             }
         }
-    }
-
-    private String findRef(Set<String> oldSet, Set<String> newSet) {
-        if (oldSet.size() >= newSet.size())
-            throw new IllegalStateException(
-                    "old set has more elements than new set");
-        for (var s : newSet) {
-            if (!oldSet.contains(s))
-                return s;
-        }
-        this.config.getLogger().warning(
-                "new order ref not found");
-        return null;
     }
 
     @InTeam

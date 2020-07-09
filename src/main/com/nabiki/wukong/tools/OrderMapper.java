@@ -30,14 +30,14 @@ package com.nabiki.wukong.tools;
 
 import com.nabiki.ctp4j.jni.struct.CThostFtdcInputOrderField;
 import com.nabiki.ctp4j.jni.struct.CThostFtdcOrderField;
-import com.nabiki.wukong.active.ActiveOrder;
+import com.nabiki.wukong.active.ActiveRequest;
 
 import java.util.*;
 
 public class OrderMapper {
     private final Map<String, UUID>
             detRef2Uuid = new HashMap<>();     // Detail ref -> UUID
-    private final Map<UUID, ActiveOrder>
+    private final Map<UUID, ActiveRequest>
             uuid2Active = new HashMap<>();   // UUID -> alive order
     private final Map<UUID, Set<String>>
             uuid2DetRef = new HashMap<>();     // UUID -> detail ref
@@ -56,7 +56,7 @@ public class OrderMapper {
      * @param active active order that issues the detailed order
      */
     @InTeam
-    public void register(CThostFtdcInputOrderField order, ActiveOrder active) {
+    public void register(CThostFtdcInputOrderField order, ActiveRequest active) {
         this.detRef2Uuid.put(order.OrderRef, active.getOrderUUID());
         this.uuid2Active.put(active.getOrderUUID(), active);
         this.uuid2DetRef.computeIfAbsent(active.getOrderUUID(),
@@ -115,7 +115,7 @@ public class OrderMapper {
     /*
     Get alive order with the specified UUID.
      */
-    public ActiveOrder getActiveOrder(UUID uuid) {
+    public ActiveRequest getActiveOrder(UUID uuid) {
         return this.uuid2Active.get(uuid);
     }
 
@@ -123,7 +123,7 @@ public class OrderMapper {
     Get alive order that issued the detail order with the specified detail order
     reference.
      */
-    public ActiveOrder getActiveOrder(String detailRef) {
+    public ActiveRequest getActiveOrder(String detailRef) {
         return getActiveOrder(this.detRef2Uuid.get(detailRef));
     }
 }
