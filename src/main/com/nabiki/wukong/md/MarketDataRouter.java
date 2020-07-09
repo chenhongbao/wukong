@@ -56,6 +56,14 @@ public class MarketDataRouter implements Runnable {
         }
     }
 
+    public void removeReceiver(MarketDataReceiver recv) {
+        if (recv == null)
+            throw new NullPointerException("receiver null");
+        synchronized (this.receivers) {
+            this.receivers.remove(recv);
+        }
+    }
+
     public void route(CThostFtdcDepthMarketDataField depth) {
         offerDepth(depth);
         trySignal();
